@@ -41,7 +41,7 @@ def test_mr_docstring_example(name, inp, outp):
     if name not in ALIASES:
         pytest.skip(f"{name} arrives in a later screws release")
     ns = dict(_NP)
-    exec(inp, ns)
+    exec(inp, ns)  # noqa: S102 - MR docstring example input
     # Bind by MR's own parameter names: the example defines them, and the screws alias
     # takes the same arguments in the same order.
     params = list(inspect.signature(getattr(mr_core, name)).parameters)

@@ -8,5 +8,5 @@ def pytest_collection_modifyitems(config, items):
         return
     skip = pytest.mark.skip(reason="needs a running CoppeliaSim; set SCREWS_COPPELIASIM=1")
     for item in items:
-        if "coppelia" in item.keywords:
+        if item.get_closest_marker("coppelia") is not None:
             item.add_marker(skip)
