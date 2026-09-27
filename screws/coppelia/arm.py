@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from ..robot import Robot
-from ..se3 import prismatic_axis, revolute_axis, transform_inv
+from ..se3 import prismatic_axis, revolute_axis, rp_to_transform, transform_inv
+from ._sim import inertia9_to_matrix, matrix12_to_transform
 
 __all__ = ["Arm"]
 
@@ -186,6 +187,66 @@ class Arm:
 
     # ----- the robot off the scene ------------------------------------------------------
 
+    def _nearest_joint(self, h: int) -> int | None:
+        """The closest joint ancestor of h among this arm's joints, or None."""
+        handles = set(self.handles)
+        p = self.sim.getObjectParent(h)
+        while p != self.sim.handle_world and p != self.base:
+            if p in handles:
+                return p
+            p = self.sim.getObjectParent(p)
+        return None
+
+    def link_shapes(self) -> list[list[int]]:
+        """The dynamic (non-static) shapes of each moving link, grouped by nearest joint ancestor.
+
+        Static shapes are visual shells in the stock models and carry meaningless masses.
+        """
+        groups: dict[int, list[int]] = {h: [] for h in self.handles}
+        for s in self.sim.getObjectsInTree(self.base, self.sim.sceneobject_shape, 0):
+            if self.sim.getObjectInt32Param(s, self.sim.shapeintparam_static):
+                continue
+            j = self._nearest_joint(s)
+            if j is not None:
+                groups[j].append(s)
+        return [groups[h] for h in self.handles]
+
+    def _link_inertias_at_zero(self, frames, M, T_ws_inv):
+        """MR link_frames and link_inertias from the scene's shapes; the arm must be at zero."""
+        link_frames, inertias = [], []
+        prev = np.eye(4)
+        for i, (shapes, F_joint) in enumerate(zip(self.link_shapes(), frames)):
+            if not shapes:
+                raise ValueError(
+                    f"joint {self.joint_names[i]!r} has no dynamic shape under it; the scene "
+                    "carries no mass for that link (is the model dynamically enabled?)"
+                )
+            ms, cs, Is = [], [], []
+            for s in shapes:
+                m = float(self.sim.getShapeMass(s))
+                I9, T12 = self.sim.getShapeInertia(s)
+                T_com = T_ws_inv @ self.scene.frame(s) @ matrix12_to_transform(T12)
+                R = T_com[:3, :3]
+                ms.append(m)
+                cs.append(T_com[:3, 3])
+                Is.append(R @ inertia9_to_matrix(I9) @ R.T)  # about the shape's COM, in {s} axes
+            m = sum(ms)
+            c = sum(mk * ck for mk, ck in zip(ms, cs)) / m
+            inertia = np.zeros((3, 3))
+            for mk, ck, Ik in zip(ms, cs, Is):
+                d = ck - c
+                inertia += Ik + mk * (float(d @ d) * np.eye(3) - np.outer(d, d))
+            R_i = F_joint[:3, :3]
+            F_i = rp_to_transform(R_i, c)  # frame {i}: link COM, joint i's orientation
+            G = np.zeros((6, 6))
+            G[:3, :3] = R_i.T @ inertia @ R_i
+            G[3:, 3:] = m * np.eye(3)
+            link_frames.append(transform_inv(prev) @ F_i)
+            inertias.append(G)
+            prev = F_i
+        link_frames.append(transform_inv(prev) @ M)
+        return tuple(link_frames), tuple(inertias)
+
     def robot(self, *, inertias: bool = False, relative_to: str = "world") -> Robot:
         """A screws.Robot read from the scene at the zero position.
 
@@ -193,22 +254,22 @@ class Arm:
         q = its origin (notes 4.1: v = -omega x q). relative_to="world" (default) makes {s}
         CoppeliaSim's world frame; relative_to="base" makes {s} the frame of the object at
         ``path``, so the result is independent of where the model stands in the scene.
-        The arm is teleported to zero for the reading and put back afterwards, so call this
-        before starting the simulation or accept a jump. inertias=True arrives in 0.2.
+        inertias=True also reads every dynamic shape's mass and inertia (MR 8.3 convention:
+        frame {i} at the link's centre of mass with joint i's orientation). The arm is
+        teleported to zero for the reading and put back afterwards, so call this before
+        starting the simulation or accept a jump.
         """
-        if inertias:
-            raise NotImplementedError("scene inertias arrive in screws 0.2")
         if relative_to not in ("world", "base"):
             raise ValueError(f'relative_to must be "world" or "base"; got {relative_to!r}')
         here = self.theta()
         self.teleport(np.zeros(self.n))
         try:
-            frames = self.joint_frames()
-            M = self.tip_frame()
-            if relative_to == "base":
-                T_ws_inv = transform_inv(self.scene.frame(self.base))
-                frames = [T_ws_inv @ F for F in frames]
-                M = T_ws_inv @ M
+            T_ws_inv = transform_inv(self.scene.frame(self.base)) if relative_to == "base" else np.eye(4)
+            frames = [T_ws_inv @ F for F in self.joint_frames()]
+            M = T_ws_inv @ self.tip_frame()
+            link_frames = link_inertias = None
+            if inertias:
+                link_frames, link_inertias = self._link_inertias_at_zero(frames, M, T_ws_inv)
         finally:
             self.teleport(here)
         axes = []
@@ -223,6 +284,8 @@ class Arm:
             joint_names=self.joint_names,
             joint_limits=self.joint_limits(),
             joint_frames_home=tuple(frames),
+            link_frames=link_frames,
+            link_inertias=link_inertias,
         )
 
     def __repr__(self) -> str:

@@ -22,6 +22,10 @@ class _Obj:
     joint_type: str = "revolute"
     interval: tuple[float, float] | None = None
     children: list[int] = field(default_factory=list)
+    mass: float = 0.0
+    inertia: np.ndarray | None = None  # 3x3 about the COM, in the shape's axes, kg m^2
+    com: np.ndarray | None = None  # COM pose relative to the shape frame (4x4)
+    static: bool = True
 
 
 class FakeSim:
@@ -37,6 +41,8 @@ class FakeSim:
     jointdynctrl_velocity = 2
     jointdynctrl_position = 4
     drawing_lines = 1
+    shapeintparam_static = 3003
+    shapeintparam_respondable = 3004
 
     def __init__(self, dt: float = 0.05):
         self.dt = dt
@@ -58,10 +64,13 @@ class FakeSim:
         self.force_errors = False
 
     # --- scene construction (test helper) ---
-    def add(self, path, kind, T, parent=-1, joint_type="revolute", interval=None) -> int:
+    def add(self, path, kind, T, parent=-1, joint_type="revolute", interval=None,
+            mass=0.0, inertia=None, com=None, static=True) -> int:
         h = 100 + len(self.objects)
         alias = path.rsplit("/", 1)[-1]
-        self.objects[h] = _Obj(h, alias, path, parent, kind, np.asarray(T, float), joint_type, interval)
+        self.objects[h] = _Obj(h, alias, path, parent, kind, np.asarray(T, float), joint_type, interval,
+                               mass=mass, inertia=None if inertia is None else np.asarray(inertia, float),
+                               com=np.eye(4) if com is None else np.asarray(com, float), static=static)
         self.by_path[path] = h
         if parent != -1:
             self.objects[parent].children.append(h)
@@ -161,6 +170,21 @@ class FakeSim:
     def setJointTargetForce(self, h, v, signed=True):
         self.target_force[h] = float(v)
 
+    def getObjectInt32Param(self, h, param):
+        if param == self.shapeintparam_static:
+            return 1 if self.objects[h].static else 0
+        if param == self.jointintparam_dynctrlmode:
+            return self.ctrl_mode[h]
+        raise KeyError(param)
+
+    def getShapeMass(self, h):
+        return self.objects[h].mass
+
+    def getShapeInertia(self, h):
+        o = self.objects[h]
+        inertia = np.zeros((3, 3)) if o.inertia is None else o.inertia
+        return [float(x) for x in inertia.reshape(-1)], _sim.transform_to_matrix12(o.com)
+
     def setObjectInt32Param(self, h, param, value):
         self.calls.append(("setObjectInt32Param", h, param, value))
         if param == self.jointintparam_dynctrlmode:
@@ -223,9 +247,15 @@ def two_joint_scene() -> FakeSim:
     sim = FakeSim()
     base = sim.add("/Arm", "shape", np.eye(4))
     j1 = sim.add("/Arm/j1", "joint", np.eye(4), parent=base, interval=(-3.0, 3.0))
-    l1 = sim.add("/Arm/link1", "shape", se3.trans([0, 0, 0.25]), parent=j1)
+    l1 = sim.add("/Arm/link1", "shape", se3.trans([0, 0, 0.25]), parent=j1,
+                 mass=2.0, inertia=np.diag([0.1, 0.1, 0.02]), static=False)
     j2 = sim.add("/Arm/j2", "joint", se3.trans([0, 0, 0.5]), parent=l1, interval=(-2.0, 2.0))
-    l2 = sim.add("/Arm/link2", "shape", se3.trans([0.15, 0, 0.5]), parent=j2)
+    # link 2 is a static visual shell (its mass must be ignored) plus two dynamic cubes
+    l2 = sim.add("/Arm/link2", "shape", se3.trans([0.15, 0, 0.5]), parent=j2, mass=99.0, static=True)
+    sim.add("/Arm/cubeA", "shape", se3.trans([0.1, 0, 0.5]), parent=j2,
+            mass=1.0, inertia=np.diag([0.01, 0.01, 0.01]), static=False)
+    sim.add("/Arm/cubeB", "shape", se3.trans([0.3, 0, 0.5]), parent=j2,
+            mass=3.0, inertia=np.diag([0.02, 0.02, 0.02]), static=False)
     sim.add("/Arm/tip", "dummy", se3.trans([0.3, 0, 0.5]), parent=l2)
     return sim
 

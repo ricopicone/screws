@@ -95,8 +95,6 @@ def test_robot_from_scene_derives_screw_axes_and_restores_pose():
         # the derived robot's FK agrees with the simulator's tip frame
         arm.teleport([0.3, 0.9])
         assert np.allclose(r.fk([0.3, 0.9]), arm.tip_frame())
-        with pytest.raises(NotImplementedError, match="0.2"):
-            arm.robot(inertias=True)
 
 
 def test_robot_from_offset_tilted_and_prismatic_joints():
@@ -148,3 +146,52 @@ def test_robot_relative_to_base_and_explicit_joints():
         assert two.n == 2 and two.joint_names == ("j1", "j2")
         with pytest.raises(LookupError, match="j9"):
             scene.arm("/Rig", joints=["j1", "j9"])
+
+
+def test_link_inertias_combine_dynamic_shapes_by_parallel_axis():
+    with Scene(sim=two_joint_scene()) as scene:
+        arm = scene.arm("/Arm")
+        shapes = arm.link_shapes()
+        assert [len(s) for s in shapes] == [1, 2]  # the static shell is excluded
+        r = arm.robot(inertias=True)
+        assert len(r.link_frames) == 3 and len(r.link_inertias) == 2
+        G1, G2 = r.link_inertias
+        assert np.allclose(np.diag(G1), [0.1, 0.1, 0.02, 2, 2, 2])
+        # link 2: m = 4 at x = 0.25; I = sum(I_k) + parallel axis about the common COM
+        assert np.allclose(np.diag(G2), [0.03, 0.06, 0.06, 4, 4, 4])
+        assert np.allclose(G2 - np.diag(np.diag(G2)), 0)
+        assert np.allclose(r.link_frames[0][:3, 3], [0, 0, 0.25])
+        assert np.allclose(r.link_frames[1][:3, 3], [0.25, 0, 0.25])
+        assert np.allclose(r.link_frames[2][:3, 3], [0.05, 0, 0])
+        prod = np.eye(4)
+        for Mi in r.link_frames:
+            prod = prod @ Mi
+        assert np.allclose(prod, r.M)
+        assert np.all(np.isfinite(r.gravity_forces([0.3, -0.2])))
+
+
+def test_link_without_dynamic_shapes_raises():
+    sim = two_joint_scene()
+    for o in sim.objects.values():
+        if o.alias in ("cubeA", "cubeB"):
+            o.static = True
+    with Scene(sim=sim) as scene, pytest.raises(ValueError, match="j2"):
+        scene.arm("/Arm").robot(inertias=True)
+
+
+def test_link_inertias_relative_to_base_keep_the_chain_consistent():
+    from tests.coppelia.fake_sim import three_joint_scene
+
+    sim = three_joint_scene()
+    for o in sim.objects.values():
+        if o.alias in ("post", "elbow", "slider"):
+            o.mass, o.inertia, o.static = 1.0, np.diag([0.01, 0.02, 0.03]), False
+    with Scene(sim=sim) as scene:
+        r = scene.arm("/Rig").robot(inertias=True, relative_to="base")
+        prod = np.eye(4)
+        for Mi in r.link_frames:
+            prod = prod @ Mi
+        assert np.allclose(prod, r.M)
+        # frame {2} takes joint 2's orientation (local z = world y), so its inertia is re-expressed
+        assert np.allclose(np.sort(np.diag(r.link_inertias[1])[:3]), [0.01, 0.02, 0.03])
+        assert np.allclose(np.diag(r.link_inertias[1])[:3], [0.01, 0.03, 0.02])

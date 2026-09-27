@@ -75,3 +75,15 @@ def test_torque_sign_moves_joint_the_right_way(scene):
         arm.command([+5.0, 0, 0, 0, 0, 0])
         scene.step()
     assert arm.theta()[0] > before
+
+
+def test_scene_inertias_are_plausible(scene):
+    arm = scene.arm("/UR5")
+    r = arm.robot(inertias=True, relative_to="base")
+    masses = [G[3, 3] for G in r.link_inertias]
+    assert len(masses) == 6 and all(m > 0 for m in masses)
+    assert 10 < sum(masses) < 30
+    for G in r.link_inertias:
+        assert np.all(np.linalg.eigvalsh(G[:3, :3]) > 0)
+    g = r.gravity_forces(np.zeros(6))
+    assert np.all(np.isfinite(g))
