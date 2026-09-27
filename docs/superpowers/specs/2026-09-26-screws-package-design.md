@@ -82,7 +82,8 @@ everything, so `sc.exp6` and `sc.se3.exp6` are the same object.
 
 Dependencies: `numpy` only. Extras: `screws[coppelia]` adds
 `coppeliasim-zmqremoteapi-client==2.0.4` (which brings `pyzmq` and `cbor2`);
-`screws[plot]` adds `matplotlib`. Python 3.10 or later. Built with `uv` and
+`screws[plot]` adds `matplotlib`; `screws[video]` adds `imageio` and
+`imageio-ffmpeg` for the recorder. Python 3.10 or later. Built with `uv` and
 `hatchling`, tested with `pytest`.
 
 ### 2. Conventions that hold everywhere
@@ -368,6 +369,33 @@ centre-of-mass frame) and builds MR-convention `link_frames` and
 `link_inertias` as the URDF loader does. Reading joint limits from
 `sim.getJointInterval` completes the `Robot`.
 
+**Scene inertias (0.2).** `Arm.robot(inertias=True)` groups the scene's shapes by
+link: a shape belongs to the moving link whose joint is its nearest joint
+ancestor, and only dynamic (non-static) shapes count, since the stock models
+carry static visual shells with meaningless masses. For each link it reads
+`sim.getShapeMass` and `sim.getShapeInertia` (inertia about the shape's centre
+of mass in the shape's axes, and the centre-of-mass transform), combines the
+shapes by the parallel-axis theorem about the link's overall centre of mass,
+and builds MR-convention `link_frames` and `link_inertias`: frame $\{i\}$ at
+the link's centre of mass with joint $i$'s orientation, $\mathcal{G}_i =
+\operatorname{diag}(\mathcal{I}_b, m I)$ in that frame. The unit convention of
+`getShapeInertia` is verified live against a primitive box of known mass
+before the first release that ships it.
+
+**`Recorder` (0.2).** A deterministic movie of a run, one frame per `step()`.
+`scene.camera(path=None, *, position, look_at, resolution=(640, 480), fov=60)`
+returns a vision sensor: an existing one at `path`, or one the bridge
+creates, places at `position` looking at `look_at`, and removes on exit.
+`scene.record_video(path, *, camera, every=1)` returns a `Recorder` context;
+inside it `Scene.run` (or a manual `recorder.capture()` before each `step()`)
+grabs the sensor image (`sim.getVisionSensorImg`, flipped to top-down), and
+on exit `Recorder.save()` encodes to MP4 or GIF by file extension with
+`imageio` behind the `screws[video]` extra, at `fps = 1 / (every * dt)` so
+playback runs at simulated time whatever the controller's wall-clock speed.
+Frames are kept in memory as `(N, H, W, 3)` uint8 and exposed as
+`recorder.frames` for students who want to annotate them. CoppeliaSim's own
+GUI video recorder is not used: it records wall-clock time and needs the GUI.
+
 **`Log`** is what `run` and the context manager accumulate: arrays `t`,
 `theta`, `dtheta`, `tau`, `command`, and `T_sb`, with `to_csv(path)`,
 `to_mr_csv(path)` (joint angles only, MR's scene format), and `plot()`
@@ -432,7 +460,7 @@ function's docstring points at them.
 | version | by | for | contents |
 |---|---|---|---|
 | 0.1 | Fri 2026-10-09 | Sim 2 lab session Mon 10/12, due Wed 10/14 (week 8) | so3, se3, kinematics, `Robot`, `IKResult` with history, `urdf`, `robots.ur5`/`rrp`, `testing`, aliases, bridge (`Scene`, `Arm` without inertias, `Log`) |
-| 0.2 | Mon 2026-10-26 | capstone assigned (week 10), Checkpoint 1 kinematics (week 12) | dynamics, trajectory, `Arm.robot(inertias=True)`, `show_frame` |
+| 0.2 | Mon 2026-10-26 | capstone assigned (week 10), Checkpoint 1 kinematics (week 12) | dynamics, trajectory, `Arm.robot(inertias=True)`, `Recorder` and `Scene.camera` (`screws[video]`) |
 | 0.3 | Mon 2026-11-16 | Checkpoint 2 planning (week 14), Checkpoint 3 control and Sim 3 (week 15) | control, torque mode, `simulate_control` against the scene |
 
 Published to PyPI by hand (the course's `uv`-managed repo pins the
