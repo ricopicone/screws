@@ -1,3 +1,5 @@
+import pathlib
+
 import numpy as np
 import pytest
 
@@ -60,7 +62,7 @@ def test_ur5_textbook_configuration_matches_mr_example_4_5():
 def test_from_urdf_string_and_robot_classmethod():
     from screws.robot import Robot
 
-    xml = open(urdf.packaged("rrp.urdf")).read()
+    xml = pathlib.Path(urdf.packaged("rrp.urdf")).read_text()
     assert urdf.load(xml).n == 3
     assert Robot.from_urdf(urdf.packaged("rrp.urdf")).n == 3
 

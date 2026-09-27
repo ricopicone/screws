@@ -11,7 +11,7 @@ from ..urdf import load, packaged
 __all__ = ["UR5_DIMENSIONS", "rrp", "ur5"]
 
 #: The rounded UR5 dimensions of MR Figure 4.6 and the notes' UR5 example, in metres.
-UR5_DIMENSIONS = dict(W1=0.109, W2=0.082, L1=0.425, L2=0.392, H1=0.089, H2=0.095)
+UR5_DIMENSIONS = {"W1": 0.109, "W2": 0.082, "L1": 0.425, "L2": 0.392, "H1": 0.089, "H2": 0.095}
 
 
 def ur5(source: str = "urdf") -> Robot:
