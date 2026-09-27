@@ -18,7 +18,7 @@ uv add "screws[coppelia]"     # plus the CoppeliaSim ZMQ remote API client
 import screws as sc
 
 ur5 = sc.robots.ur5()                              # M, screw axes, inertias from the textbook's URDF
-T = ur5.fk([0, -1.5708, 0, 0, 1.5708, 0])            # MR Example 4.5
+T = ur5.fk([0.3, -1.2, 0.8, -0.4, 1.1, 0.2])         # a reachable, non-singular pose
 result = ur5.ik(T, theta0=[0.1, -1.4, 0.1, 0.1, 1.4, 0.1])   # result.theta, result.converged, result.history
 ```
 

@@ -26,7 +26,14 @@ def _gravity_default() -> np.ndarray:
     return np.array([0.0, 0.0, -9.81])
 
 
-@dataclass(frozen=True)
+def _frozen(a) -> np.ndarray:
+    """A float64 copy with the writeable flag off, so a frozen Robot cannot be edited in place."""
+    a = np.array(a, dtype=float)
+    a.flags.writeable = False
+    return a
+
+
+@dataclass(frozen=True, eq=False)
 class Robot:
     """A serial-chain robot in the product-of-exponentials description.
 
@@ -73,7 +80,11 @@ class Robot:
         for name in ("joint_frames_home", "link_frames", "link_inertias"):
             v = getattr(self, name)
             if v is not None:
-                object.__setattr__(self, name, tuple(np.asarray(a, dtype=float) for a in v))
+                object.__setattr__(self, name, tuple(_frozen(a) for a in v))
+        for name in ("M", "S", "gravity", "joint_limits"):
+            v = getattr(self, name)
+            if v is not None:
+                object.__setattr__(self, name, _frozen(v))
 
     # ----- construction -------------------------------------------------------------
 

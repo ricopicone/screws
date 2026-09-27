@@ -26,6 +26,7 @@ class Scene:
         self.sim.setStepping(True)
         self.started = False
         self.log = Log() if log else None
+        self._triads: dict[str, list[int]] = {}
 
     def __enter__(self):
         return self
@@ -33,6 +34,10 @@ class Scene:
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.started:
             self.stop()
+        client = getattr(self.sim, "_screws_client", None)
+        socket = getattr(client, "socket", None)
+        if socket is not None:
+            socket.close()
 
     # ----- time -------------------------------------------------------------------------
 
@@ -76,22 +81,39 @@ class Scene:
         self.sim.setObjectMatrix(self._handle(obj), _sim.transform_to_matrix12(T), self.sim.handle_world)
 
     def show_frame(self, T, name: str = "frame", size: float = 0.1) -> None:
-        """Draw a triad at T: red x, green y, blue z. A teaching aid for target poses."""
+        """Draw a triad at T: red x, green y, blue z. Drawing the same name again moves it."""
+        self._remove_triad(name)
         T = np.asarray(T, dtype=float)
         o = T[:3, 3]
+        handles = []
         for k, colour in enumerate(([1, 0, 0], [0, 1, 0], [0, 0, 1])):
             h = self.sim.addDrawingObject(self.sim.drawing_lines, 3, 0.0, -1, 2, colour)
             tip = o + size * T[:3, k]
             self.sim.addDrawingObjectItem(h, [*o, *tip])
+            handles.append(h)
+        self._triads[name] = handles
 
-    def arm(self, path: str) -> Arm:
-        return Arm(self, path)
+    def clear_frames(self) -> None:
+        """Remove every triad drawn by show_frame."""
+        for name in list(self._triads):
+            self._remove_triad(name)
+
+    def _remove_triad(self, name: str) -> None:
+        for h in self._triads.pop(name, []):
+            self.sim.removeDrawingObject(h)
+
+    def arm(self, path: str, joints=None) -> Arm:
+        """The Arm under path; ``joints`` names a subset (aliases or paths) when a tool adds its own."""
+        return Arm(self, path, joints)
 
     # ----- running ----------------------------------------------------------------------
 
-    def record(self, arm: Arm, command=None) -> None:
+    def record(self, arm: Arm, command=None, *, theta=None, dtheta=None) -> None:
+        """Append one row to the log; pass theta/dtheta already read this step to avoid re-reading."""
         if self.log is not None:
-            self.log.record(self.time, arm.theta(), arm.dtheta(), arm.tau(), command, arm.tip_frame())
+            theta = arm.theta() if theta is None else theta
+            dtheta = arm.dtheta() if dtheta is None else dtheta
+            self.log.record(self.time, theta, dtheta, arm.tau(), command, arm.tip_frame())
 
     def run(self, controller: Callable, *, duration: float, arm: Arm, log: bool = True) -> Log:
         """Loop controller(t, theta, dtheta) -> command over the simulation for duration seconds.
@@ -109,6 +131,6 @@ class Scene:
             if u is not None:
                 arm.command(u)
             if log:
-                self.record(arm, u)
+                self.record(arm, u, theta=theta, dtheta=dtheta)
             self.step()
         return self.log

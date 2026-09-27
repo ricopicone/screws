@@ -68,6 +68,11 @@ def _parse_joint(el: ET.Element) -> _Joint:
     axis = _floats(axis_el.get("xyz"), "1 0 0") if axis_el is not None else None
     if jtype in _MOVING and axis is None:
         axis = np.array([1.0, 0.0, 0.0])  # the URDF default
+    if axis is not None:
+        norm = np.linalg.norm(axis)
+        if norm == 0:
+            raise ValueError(f"joint {el.get('name')!r} has a zero <axis>")
+        axis = axis / norm
     lim_el = el.find("limit")
     limits = None
     if lim_el is not None and lim_el.get("lower") is not None and lim_el.get("upper") is not None:
@@ -105,6 +110,8 @@ def _pick(kind: str, candidates: list[str], chosen: str | None) -> str:
         return chosen
     if len(candidates) == 1:
         return candidates[0]
+    if not candidates:
+        raise ValueError("the URDF has no joints, so there is no chain to read")
     raise ValueError(
         f"cannot choose the {kind}: candidates are {', '.join(sorted(candidates))}; "
         f"pass {kind.split()[0]}_link=..."
@@ -118,7 +125,9 @@ def load(path_or_xml, *, base_link: str | None = None, ee_link: str | None = Non
     (default: the one link that is nobody's parent). Each moving joint's <origin> is
     T_{i-1,i}(0); its <axis> in its own frame is A_i = (axis, 0) or (0, axis); the screw
     axis in {s} is S_i = [Ad_{T_0i(0)}] A_i, and M is the product carried through the
-    fixed joints to ee_link. Fixed joints add no column. <limit> bounds are recorded.
+    fixed joints to ee_link. Fixed joints add no column. <axis> is normalised. <limit>
+    bounds are recorded; a joint without them (e.g. continuous) gets (-inf, inf) when any
+    other joint has limits.
 
     Inertia follows MR 8.3: link frame {i} sits at link i's centre of mass with the
     <inertial><origin> axes, so G_i = diag(I_b, m I); link_frames[i-1] is M_{i-1,i} and
@@ -184,8 +193,10 @@ def load(path_or_xml, *, base_link: str | None = None, ee_link: str | None = Non
     n = len(S_cols)
     S = np.column_stack(S_cols) if n else np.zeros((6, 0))
     joint_limits = None
-    if n and all(lim is not None for lim in limits):
-        joint_limits = np.array(limits, dtype=float)
+    if n and any(lim is not None for lim in limits):
+        joint_limits = np.array(
+            [lim if lim is not None else (-np.inf, np.inf) for lim in limits], dtype=float
+        )
 
     link_frames = link_inertias = None
     if n and all(inertials.get(name) is not None for name, _ in moving_links):

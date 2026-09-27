@@ -128,3 +128,23 @@ def test_tip_falls_back_to_last_joints_child():
         arm = scene.arm("/Rig")
         assert arm.tip_alias == "slider"
         assert np.allclose(arm.tip_frame()[:3, 3], [1.4, 0, 0.5])
+
+
+def test_robot_relative_to_base_and_explicit_joints():
+    from tests.coppelia.fake_sim import three_joint_scene
+
+    with Scene(sim=three_joint_scene()) as scene:
+        arm = scene.arm("/Rig")
+        r_world = arm.robot()
+        r_base = arm.robot(relative_to="base")
+        # the base sits at (1, 0, 0): in base coordinates the first axis passes through the origin
+        assert np.allclose(r_base.S[:, 0], [0, 0, 1, 0, 0, 0])
+        assert np.allclose(r_base.M[:3, 3], [0.4, 0, 0.5])
+        assert np.allclose(r_world.M[:3, 3], [1.4, 0, 0.5])
+        with pytest.raises(ValueError, match="relative_to"):
+            arm.robot(relative_to="tip")
+        # an explicit joint list excludes whatever a gripper would add
+        two = scene.arm("/Rig", joints=["j1", "j2"])
+        assert two.n == 2 and two.joint_names == ("j1", "j2")
+        with pytest.raises(LookupError, match="j9"):
+            scene.arm("/Rig", joints=["j1", "j9"])

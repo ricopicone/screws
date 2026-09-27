@@ -92,3 +92,22 @@ def test_limits_are_read():
     </robot>"""
     r = urdf.load(xml)
     assert np.allclose(r.joint_limits, [[-1.5, 2.5]])
+
+
+def test_axis_is_normalised_and_partial_limits_become_inf():
+    xml = """<robot name="p">
+    <joint name="j1" type="revolute"><parent link="a"/><child link="b"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/><axis xyz="0 0 2"/><limit lower="-1" upper="1" effort="1" velocity="1"/></joint>
+    <joint name="j2" type="continuous"><parent link="b"/><child link="c"/>
+      <origin xyz="0 0 0.3" rpy="0 0 0"/><axis xyz="0 3 0"/></joint>
+    </robot>"""
+    r = urdf.load(xml)
+    assert np.allclose(r.S[:3, 0], [0, 0, 1]) and np.allclose(r.S[:3, 1], [0, 1, 0])
+    assert np.allclose(r.joint_limits[0], [-1, 1])
+    assert r.joint_limits[1, 0] == -np.inf and r.joint_limits[1, 1] == np.inf
+    assert r.within_limits([0.5, 100.0]) and not r.within_limits([1.5, 0.0])
+
+
+def test_no_joints_gives_a_readable_error():
+    with pytest.raises(ValueError, match="no joints"):
+        urdf.load('<robot name="empty"><link name="only"/></robot>')

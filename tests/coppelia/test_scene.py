@@ -61,3 +61,43 @@ def test_log_csv_and_mr_csv(tmp_path):
     log.to_mr_csv(mr)
     rows = mr.read_text().splitlines()
     assert len(rows) == 2 and rows[1].count(",") == 1  # joint angles only, no header
+
+
+def test_exit_closes_the_socket_it_opened():
+    sim = two_joint_scene()
+
+    class Sock:
+        closed = False
+
+        def close(self):
+            self.closed = True
+
+    class Client:
+        socket = Sock()
+
+    sim._screws_client = Client()
+    with Scene(sim=sim):
+        pass
+    assert sim._screws_client.socket.closed
+
+
+def test_show_frame_replaces_a_named_triad_and_clear_removes_all():
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        scene.show_frame(np.eye(4), "goal")
+        scene.show_frame(np.eye(4), "goal")
+        scene.show_frame(np.eye(4), "other")
+        assert len(sim.live_drawings()) == 6  # two triads, the first "goal" replaced
+        scene.clear_frames()
+        assert len(sim.live_drawings()) == 0
+
+
+def test_run_reads_state_once_per_step():
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        arm.mode("position")
+        sim.calls.clear()
+        scene.run(lambda t, th, dth: th, duration=0.1, arm=arm)
+    reads = [c for c in sim.calls if c[0] == "getJointPosition"]
+    assert len(reads) == 2 * arm.n  # 2 steps x n joints, read once per step

@@ -132,6 +132,7 @@ class FakeSim:
         self.objects[h].T_world_zero = _sim.matrix12_to_transform(m)
 
     def getJointPosition(self, h):
+        self.calls.append(("getJointPosition", h))
         return self.q[h]
 
     def setJointPosition(self, h, v):
@@ -200,6 +201,12 @@ class FakeSim:
 
     def addDrawingObjectItem(self, handle, item):
         self.drawings[handle - 901].append(item)
+
+    def removeDrawingObject(self, handle):
+        self.drawings[handle - 901] = None
+
+    def live_drawings(self):
+        return [d for d in self.drawings if d is not None]
 
 
 def two_joint_scene() -> FakeSim:

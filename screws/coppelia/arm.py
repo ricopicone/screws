@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..robot import Robot
-from ..se3 import prismatic_axis, revolute_axis
+from ..se3 import prismatic_axis, revolute_axis, transform_inv
 
 __all__ = ["Arm"]
 
@@ -15,18 +15,37 @@ _MODES = ("position", "velocity", "torque")
 class Arm:
     """A serial chain in the scene: its joints ordered base to tip, and its tip object.
 
-    Joints are every joint under ``path``, ordered by depth. The tip is the first dummy
+    Joints are every joint under ``path``, ordered by depth, or the ones named in ``joints``
+    (aliases or paths, in order) when a gripper or other tool adds joints of its own. The tip is the first dummy
     under ``path`` whose alias is "tip" or "ee" (or contains "tip"), else the last joint.
     """
 
-    def __init__(self, scene, path: str):
+    def __init__(self, scene, path: str, joints=None):
         self.scene = scene
         self.sim = scene.sim
         self.path = path
         self.base = scene._handle(path)
         self.alias = self.sim.getObjectAlias(self.base, -1)
-        joints = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_joint, 0))
-        joints.sort(key=self._depth)
+        found = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_joint, 0))
+        found.sort(key=self._depth)
+        if joints is None:
+            joints = found
+        else:
+            by_alias = {self.sim.getObjectAlias(h, -1): h for h in found}
+            picked = []
+            for j in joints:
+                if isinstance(j, str) and j in by_alias:
+                    picked.append(by_alias[j])
+                elif isinstance(j, str):
+                    try:
+                        picked.append(scene._handle(j))
+                    except LookupError as exc:
+                        raise LookupError(
+                            f"no joint {j!r} under {path}; found {sorted(by_alias)}"
+                        ) from exc
+                else:
+                    picked.append(int(j))
+            joints = picked
         self.handles: tuple[int, ...] = tuple(joints)
         self.joint_names: tuple[str, ...] = tuple(self.sim.getObjectAlias(h, -1) for h in joints)
         self.tip, self.tip_alias = self._find_tip()
@@ -167,20 +186,29 @@ class Arm:
 
     # ----- the robot off the scene ------------------------------------------------------
 
-    def robot(self, *, inertias: bool = False) -> Robot:
+    def robot(self, *, inertias: bool = False, relative_to: str = "world") -> Robot:
         """A screws.Robot read from the scene at the zero position.
 
         M is the tip frame; joint i's screw axis has omega = its frame's z axis and
-        q = its origin (notes 4.1: v = -omega x q). The arm is teleported to zero for the
-        reading and put back afterwards. inertias=True arrives in screws 0.2.
+        q = its origin (notes 4.1: v = -omega x q). relative_to="world" (default) makes {s}
+        CoppeliaSim's world frame; relative_to="base" makes {s} the frame of the object at
+        ``path``, so the result is independent of where the model stands in the scene.
+        The arm is teleported to zero for the reading and put back afterwards, so call this
+        before starting the simulation or accept a jump. inertias=True arrives in 0.2.
         """
         if inertias:
             raise NotImplementedError("scene inertias arrive in screws 0.2")
+        if relative_to not in ("world", "base"):
+            raise ValueError(f'relative_to must be "world" or "base"; got {relative_to!r}')
         here = self.theta()
         self.teleport(np.zeros(self.n))
         try:
             frames = self.joint_frames()
             M = self.tip_frame()
+            if relative_to == "base":
+                T_ws_inv = transform_inv(self.scene.frame(self.base))
+                frames = [T_ws_inv @ F for F in frames]
+                M = T_ws_inv @ M
         finally:
             self.teleport(here)
         axes = []

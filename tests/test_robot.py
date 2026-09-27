@@ -73,3 +73,23 @@ def test_limits_missing_inertias_and_copies():
     assert r2.within_limits([1.5, 0, 0]) and not r.within_limits([1.5, 0, 0])
     with pytest.raises(dataclasses.FrozenInstanceError):
         r.name = "x"
+
+
+def test_robot_is_not_comparable_or_hashable_by_value_and_arrays_are_read_only():
+    r = Robot.from_screw_axes(M, AXES)
+    r2 = Robot.from_screw_axes(M, AXES)
+    assert (r == r2) is False and (r == r) is True  # identity only, never an ndarray truth error
+    hash(r)  # identity hash works
+    with pytest.raises(ValueError, match="read-only"):
+        r.S[0, 0] = 5.0
+    with pytest.raises(ValueError, match="read-only"):
+        r.M[0, 3] = 5.0
+
+
+def test_random_theta_uses_pi_for_unbounded_joints():
+    from screws import testing as st
+
+    r = Robot.from_screw_axes(M, AXES, joint_limits=[[-0.1, 0.1], [-np.inf, np.inf], [0, 1]])
+    for _ in range(20):
+        th = st.random_theta(r, np.random.default_rng(1))
+        assert r.within_limits(th) and abs(th[1]) <= np.pi

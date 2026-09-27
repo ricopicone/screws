@@ -35,11 +35,12 @@ def random_transform(rng=None, *, scale: float = 1.0) -> np.ndarray:
 
 
 def random_theta(robot, rng=None) -> np.ndarray:
-    """A random joint vector for robot, within its joint_limits, or in [-pi, pi) without them."""
+    """A random joint vector within robot.joint_limits; [-pi, pi) for joints without a finite bound."""
     rng = _rng(rng)
     if robot.joint_limits is None:
         return rng.uniform(-np.pi, np.pi, size=robot.n)
-    lo, hi = robot.joint_limits[:, 0], robot.joint_limits[:, 1]
+    lo = np.where(np.isfinite(robot.joint_limits[:, 0]), robot.joint_limits[:, 0], -np.pi)
+    hi = np.where(np.isfinite(robot.joint_limits[:, 1]), robot.joint_limits[:, 1], np.pi)
     return rng.uniform(lo, hi)
 
 
