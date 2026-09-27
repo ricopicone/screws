@@ -116,6 +116,10 @@ joint frames (omega is the joint's z axis, v = -omega x q).
 
 ## An example: putting
 
+![The UR5 sinks a 60 cm putt on a green with the Saint Martin's seal and logo](docs/media/putt.gif)
+
+[Full-resolution movie (mp4)](docs/media/putt.mp4), recorded by the example itself with `screws.coppelia.Recorder`.
+
 `examples/putt.py` builds a green in a running CoppeliaSim (turf with a real cup cut through
 it, a pin and flag, a ball, and a putter on the UR5's flange), drives the arm in kinematic
 mode, addresses the ball, swings the putter through it like a pendulum at a chosen face

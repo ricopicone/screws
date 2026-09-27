@@ -31,6 +31,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["screws"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["docs/media/**", ".github/**"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = ["coppelia: needs a running CoppeliaSim (set SCREWS_COPPELIASIM=1)"]
