@@ -12,7 +12,10 @@
    `uv run python tools/print_alias_table.py` and paste it under "Names".
 5. If the `modern_robotics` dev pin changed, re-harvest the docstring examples:
    `uv run python tools/harvest_mr_examples.py`.
-6. `uv build`, then publish by hand with twine (`uv publish` ignores `~/.pypirc`):
-   `uvx twine upload dist/*`.
-7. Tag: `git tag v<version> && git push --tags`.
-8. Pin the new version in the course repo.
+6. Commit, then tag and push the tag: `git tag v<version> && git push origin v<version>`.
+   The `Publish to PyPI` workflow (`.github/workflows/publish.yml`) checks that the tag
+   matches `pyproject.toml` and `_version.py`, runs the suite, builds, and uploads.
+   It uses the `PYPI_API_TOKEN` repository secret when set, else PyPI trusted publishing
+   (register the workflow as a publisher for `screws` on pypi.org, environment `pypi`).
+   Fallback by hand: `uv build && uvx twine upload dist/*` (`uv publish` ignores `~/.pypirc`).
+7. Watch it: `gh run watch`. Then pin the new version in the course repo.

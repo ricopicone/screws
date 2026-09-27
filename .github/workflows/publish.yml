@@ -1,0 +1,47 @@
+name: Publish to PyPI
+
+# Runs when a version tag is pushed (git tag v0.1.0 && git push --tags).
+# Publishes with PyPI trusted publishing (OIDC) when the project has this workflow
+# registered as a publisher; otherwise falls back to the PYPI_API_TOKEN repository secret.
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Check that the tag matches the package version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          version="$(uv run --no-project python -c 'import tomllib,sys; print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')"
+          test "$tag" = "$version" || { echo "tag v$tag != pyproject version $version"; exit 1; }
+          grep -q "__version__ = \"$version\"" screws/_version.py || { echo "_version.py disagrees"; exit 1; }
+      - run: uv sync --all-extras
+      - run: uv run pytest -q
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write   # trusted publishing
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
