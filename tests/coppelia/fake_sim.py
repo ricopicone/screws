@@ -111,9 +111,10 @@ class FakeSim:
         stack = [base]
         while stack:
             h = stack.pop(0)
-            if h != base or not (options & 1):
-                if obj_type == self.sceneobject_shape + 0 and self.objects[h].kind == "shape" or obj_type == self.sceneobject_joint and self.objects[h].kind == "joint" or obj_type == self.sceneobject_dummy and self.objects[h].kind == "dummy":
-                    out.append(h)
+            kinds = {self.sceneobject_shape: "shape", self.sceneobject_joint: "joint",
+                     self.sceneobject_dummy: "dummy"}
+            if (h != base or not (options & 1)) and self.objects[h].kind == kinds.get(obj_type):
+                out.append(h)
             stack.extend(self.objects[h].children)
         return out
 

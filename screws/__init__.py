@@ -16,20 +16,22 @@ from .robot import MissingInertias, Robot
 from .se3 import *
 from .so3 import *
 
-__all__ = [
-    "__version__",
-    "ALIASES",
-    "IKResult",
-    "MissingInertias",
-    "Robot",
-    "kinematics",
-    "robots",
-    "se3",
-    "so3",
-    "testing",
-    "urdf",
-    *so3.__all__,
-    *se3.__all__,
-    *kinematics.__all__,
-    *ALIASES,
-]
+__all__ = (
+    [
+        "__version__",
+        "ALIASES",
+        "IKResult",
+        "MissingInertias",
+        "Robot",
+        "kinematics",
+        "robots",
+        "se3",
+        "so3",
+        "testing",
+        "urdf",
+    ]
+    + list(so3.__all__)
+    + list(se3.__all__)
+    + list(kinematics.__all__)
+    + list(ALIASES)
+)

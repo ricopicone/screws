@@ -91,4 +91,4 @@ def IKinSpace(Slist, M, T, thetalist0, eomg, ev):
     return r.theta, r.converged
 
 
-__all__ = ["ALIASES", *ALIASES]
+__all__ = list(ALIASES) + ["ALIASES"]
