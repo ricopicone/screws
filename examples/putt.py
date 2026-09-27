@@ -57,12 +57,14 @@ def main() -> None:
         putter = golf.attach_putter(scene, arm)
         robot_face = putter.robot(robot)  # M moved to the putter face
         yaw = golf.camera_yaw(CAMERA["position"], CAMERA["look_at"])
-        forward = golf.camera_forward(CAMERA["position"], CAMERA["look_at"])
         right = np.array([np.cos(yaw), np.sin(yaw)])
+        # the seal and the banner side by side up front, on the camera side of the line
+        centre = (np.asarray(args.ball, float) + np.asarray(args.hole, float)) / 2
+        seal_position = centre + np.array([0.15, -0.45]) - 0.45 * right
         green = golf.build_green(
             scene, ball_position=args.ball, hole_position=args.hole,
-            flag_image=flag_image, seal_image=seal, logo_image=logo, logo_width=0.9,
-            logo_position=np.asarray(args.hole, float) + 0.7 * forward + 0.65 * right,  # beyond the hole, clear of the pin
+            flag_image=flag_image, seal_image=seal, seal_position=seal_position, seal_size=0.35,
+            logo_image=logo, logo_width=0.8,  # logo_position defaults to beside the seal, along the camera's right
             yaw=yaw,
         )
         arm.mode("kinematic")
