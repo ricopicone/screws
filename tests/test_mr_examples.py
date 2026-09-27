@@ -1,6 +1,7 @@
 """Every MR docstring example, run through the screws alias of the same name."""
 
 import inspect
+import re
 
 import modern_robotics.core as mr_core
 import numpy as np
@@ -10,17 +11,30 @@ import screws as sc
 from screws.aliases import ALIASES
 from tests.mr_examples import EXAMPLES
 
-_NP = {"np": np, "numpy": np}
+_NP = {"np": np, "numpy": np, "array": np.array}
 
 
 def _evaluate_output(src: str):
-    # MR's Output blocks are numpy literals, sometimes with the commas between rows missing.
+    # MR's Output blocks are numpy literals, sometimes with the commas between rows missing,
+    # and sometimes several labelled values ("thetalistNext:\n array(...)"), which form a tuple.
+    labelled = [ln for ln in src.splitlines() if re.fullmatch(r"\s*\w+:\s*", ln)]
+    if labelled:
+        parts = [p.strip() for p in re.split(r"^\s*\w+:\s*$", src, flags=re.MULTILINE) if p.strip()]
+        return tuple(_evaluate_output(p) for p in parts)
     src = src.replace("]\n", "],\n").replace("],\n]", "]\n]").rstrip(",\n")
     try:
         return eval(src, dict(_NP))
     except SyntaxError:
         fixed = src.replace("]\n                  [", "],\n                  [")
         return eval(fixed, dict(_NP))
+
+
+def _printed_atol(src: str) -> float:
+    """Half a unit in the last printed decimal place: MR rounds its Output blocks."""
+    decimals = [len(m.group(1)) for m in re.finditer(r"\d\.(\d+)(?![eE])", src)]
+    if not decimals:
+        return 1e-6
+    return max(1e-6, 0.51 * 10.0 ** -max(decimals))
 
 
 def _compare(got, want, atol=1e-6, rtol=1e-4):
@@ -47,4 +61,4 @@ def test_mr_docstring_example(name, inp, outp):
     params = list(inspect.signature(getattr(mr_core, name)).parameters)
     args = [ns[p] for p in params if p in ns]
     assert len(args) == len(params), f"{name}: could not bind {params} from {sorted(ns)}"
-    _compare(getattr(sc, name)(*args), _evaluate_output(outp))
+    _compare(getattr(sc, name)(*args), _evaluate_output(outp), atol=_printed_atol(outp))

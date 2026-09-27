@@ -8,7 +8,7 @@ names exist so a student can type what the book says.
 
 from __future__ import annotations
 
-from . import dynamics, kinematics, se3, so3
+from . import dynamics, kinematics, se3, so3, trajectory
 
 #: MR name -> screws primary name.
 ALIASES: dict[str, str] = {
@@ -57,6 +57,12 @@ ALIASES: dict[str, str] = {
     "EulerStep": "euler_step",
     "InverseDynamicsTrajectory": "inverse_dynamics_trajectory",
     "ForwardDynamicsTrajectory": "forward_dynamics_trajectory",
+    # chapter 9
+    "CubicTimeScaling": "cubic_time_scaling",
+    "QuinticTimeScaling": "quintic_time_scaling",
+    "JointTrajectory": "joint_trajectory",
+    "ScrewTrajectory": "screw_trajectory",
+    "CartesianTrajectory": "cartesian_trajectory",
 }
 
 # Identity aliases: the same object under MR's name.
@@ -98,6 +104,31 @@ ForwardDynamics = dynamics.forward_dynamics
 EulerStep = dynamics.euler_step
 InverseDynamicsTrajectory = dynamics.inverse_dynamics_trajectory
 ForwardDynamicsTrajectory = dynamics.forward_dynamics_trajectory
+CubicTimeScaling = trajectory.cubic_time_scaling
+QuinticTimeScaling = trajectory.quintic_time_scaling
+
+
+def _scaling(method):
+    if method == 3:
+        return "cubic"
+    if method == 5:
+        return "quintic"
+    raise ValueError(f"method must be 3 (cubic) or 5 (quintic); got {method!r}")
+
+
+def JointTrajectory(thetastart, thetaend, Tf, N, method):
+    """MR's JointTrajectory: method 3 is cubic, 5 is quintic. Wraps screws.trajectory.joint_trajectory."""
+    return trajectory.joint_trajectory(thetastart, thetaend, Tf, N, _scaling(method))
+
+
+def ScrewTrajectory(Xstart, Xend, Tf, N, method):
+    """MR's ScrewTrajectory. Wraps screws.trajectory.screw_trajectory."""
+    return trajectory.screw_trajectory(Xstart, Xend, Tf, N, _scaling(method))
+
+
+def CartesianTrajectory(Xstart, Xend, Tf, N, method):
+    """MR's CartesianTrajectory. Wraps screws.trajectory.cartesian_trajectory."""
+    return trajectory.cartesian_trajectory(Xstart, Xend, Tf, N, _scaling(method))
 
 
 def IKinBody(Blist, M, T, thetalist0, eomg, ev):

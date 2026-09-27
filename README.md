@@ -114,6 +114,21 @@ axis direction and differ by under a millimetre in position.
 | `JacobianSpace` | `jacobian_space` |
 | `IKinBody` | `ik_body` |
 | `IKinSpace` | `ik_space` |
+| `ad` | `ad` |
+| `InverseDynamics` | `inverse_dynamics` |
+| `MassMatrix` | `mass_matrix` |
+| `VelQuadraticForces` | `velocity_quadratic_forces` |
+| `GravityForces` | `gravity_forces` |
+| `EndEffectorForces` | `end_effector_forces` |
+| `ForwardDynamics` | `forward_dynamics` |
+| `EulerStep` | `euler_step` |
+| `InverseDynamicsTrajectory` | `inverse_dynamics_trajectory` |
+| `ForwardDynamicsTrajectory` | `forward_dynamics_trajectory` |
+| `CubicTimeScaling` | `cubic_time_scaling` |
+| `QuinticTimeScaling` | `quintic_time_scaling` |
+| `JointTrajectory` | `joint_trajectory` |
+| `ScrewTrajectory` | `screw_trajectory` |
+| `CartesianTrajectory` | `cartesian_trajectory` |
 
 Where a screws function's signature matches MR's, the alias **is** that function
 (`screws.FKinSpace is screws.fk_space`). `IKinBody` and `IKinSpace` are thin wrappers that return
