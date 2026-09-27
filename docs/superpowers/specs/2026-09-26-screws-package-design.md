@@ -312,7 +312,7 @@ pattern in three ways and no more.
 ### 8. The CoppeliaSim bridge, `screws.coppelia`
 
 Imports only when asked; `import screws` never touches `zmq`. The bridge
-talks to CoppeliaSim 4.9 through the ZMQ remote API in stepping mode, so
+talks to CoppeliaSim 4.9 or later (0.1 verified on 4.10.0) through the ZMQ remote API in stepping mode, so
 the student's Python program decides when simulated time advances.
 
 ```python

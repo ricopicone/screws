@@ -169,10 +169,18 @@ class FakeSim:
     def setStepping(self, enable=True):
         self.stepping = enable
 
+    simulation_stopped = 0
+    simulation_advancing_running = 17
+
+    def getSimulationState(self):
+        return self.simulation_advancing_running if self.running else self.simulation_stopped
+
     def startSimulation(self):
+        self.calls.append(("startSimulation",))
         self.running = True
 
     def stopSimulation(self):
+        self.calls.append(("stopSimulation",))
         self.running = False
 
     def step(self):

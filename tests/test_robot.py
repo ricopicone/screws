@@ -78,7 +78,7 @@ def test_limits_missing_inertias_and_copies():
 def test_robot_is_not_comparable_or_hashable_by_value_and_arrays_are_read_only():
     r = Robot.from_screw_axes(M, AXES)
     r2 = Robot.from_screw_axes(M, AXES)
-    assert (r == r2) is False and (r == r) is True  # identity only, never an ndarray truth error
+    assert (r == r2) is False  # identity comparison only, never an ndarray truth error
     hash(r)  # identity hash works
     with pytest.raises(ValueError, match="read-only"):
         r.S[0, 0] = 5.0

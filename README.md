@@ -46,6 +46,8 @@ sc.testing.check(my_exp6, sc.exp6, cases)          # raises on the first disagre
 
 ## CoppeliaSim
 
+Works with CoppeliaSim 4.9 or later through the ZMQ remote API (0.1 verified on 4.10.0).
+
 ```python
 from screws.coppelia import Scene
 

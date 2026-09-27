@@ -101,3 +101,21 @@ def test_run_reads_state_once_per_step():
         scene.run(lambda t, th, dth: th, duration=0.1, arm=arm)
     reads = [c for c in sim.calls if c[0] == "getJointPosition"]
     assert len(reads) == 2 * arm.n  # 2 steps x n joints, read once per step
+
+
+def test_start_stops_a_stale_running_simulation_first():
+    sim = two_joint_scene()
+    sim.running = True  # left over from a crashed client
+    sim.calls.clear()
+    with Scene(sim=sim) as scene:
+        scene.start()
+        assert ("stopSimulation",) in sim.calls
+        assert sim.calls.index(("stopSimulation",)) < sim.calls.index(("startSimulation",))
+        assert sim.running
+
+
+def test_exit_deregisters_the_stepping_client():
+    sim = two_joint_scene()
+    with Scene(sim=sim):
+        assert sim.stepping
+    assert not sim.stepping  # otherwise the server waits forever for this client's next step()

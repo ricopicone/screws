@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import Callable
 
 import numpy as np
@@ -34,6 +35,13 @@ class Scene:
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.started:
             self.stop()
+        # De-register as a stepping client: the server advances only when every registered
+        # stepping client has called step(), so a client that leaves silently freezes the clock
+        # for everyone who comes after it.
+        try:
+            self.sim.setStepping(False)
+        except Exception:  # noqa: BLE001 - the simulator may already be gone
+            pass
         client = getattr(self.sim, "_screws_client", None)
         socket = getattr(client, "socket", None)
         if socket is not None:
@@ -42,6 +50,14 @@ class Scene:
     # ----- time -------------------------------------------------------------------------
 
     def start(self) -> None:
+        """Start the simulation. A simulation left running by a crashed client is stopped first,
+        since in stepping mode it would wait forever for that client's next step()."""
+        if self.sim.getSimulationState() != self.sim.simulation_stopped:
+            self.stop()
+            for _ in range(200):
+                if self.sim.getSimulationState() == self.sim.simulation_stopped:
+                    break
+                time.sleep(0.05)
         self.sim.startSimulation()
         self.started = True
 

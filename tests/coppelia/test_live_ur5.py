@@ -1,4 +1,5 @@
-"""Tests against a running CoppeliaSim 4.9 with the UR5 model loaded at /UR5.
+"""Tests against a running CoppeliaSim (4.9 or later; verified on 4.10.0) with the UR5 model
+loaded at /UR5 (Model browser > robots > non-mobile > UR5, or sim.loadModel on UR5.ttm).
 
 Run with: SCREWS_COPPELIASIM=1 uv run pytest -q -m coppelia
 They are skipped otherwise (see tests/conftest.py).
@@ -36,11 +37,23 @@ def test_robot_off_the_scene_matches_tip_frame(scene):
         assert np.allclose(r.fk(th), arm.tip_frame(), atol=1e-4)
 
 
-def test_scene_robot_omegas_match_textbook_ur5(scene):
-    # Same axis directions as the textbook's UR5 (up to the model's base placement).
-    r = scene.arm("/UR5").robot()
+def test_scene_robot_has_ur5_geometry(scene):
+    # The model stands in a different zero pose from the textbook figure (rotated about z),
+    # so compare what is pose-independent: the parallel-axis pattern and the link lengths.
+    r = scene.arm("/UR5").robot(relative_to="base")
+    w = r.S[:3].T
+    q = np.array([np.cross(w[i], r.S[3:, i]) for i in range(6)])  # nearest point on each axis
+    dot = lambda i, j: abs(float(w[i] @ w[j]))
+    assert dot(0, 1) < 1e-6  # shoulder pan perpendicular to shoulder lift
+    assert all(dot(1, k) > 1 - 1e-6 for k in (2, 3, 5))  # joints 2, 3, 4, 6 parallel
+    assert dot(3, 4) < 1e-6 and dot(0, 4) > 1 - 1e-6  # wrist 2 parallel to joint 1
     u = robots.ur5()
-    assert np.allclose(np.abs(r.S[:3]), np.abs(u.S[:3]), atol=1e-6)
+    qu = np.array([np.cross(u.S[:3, i], u.S[3:, i]) for i in range(6)])
+    # upper-arm and forearm lengths along the common normal of the parallel axes
+    for a, b in ((1, 2), (2, 3)):
+        d_scene = np.linalg.norm(np.cross(q[b] - q[a], w[a]))
+        d_book = np.linalg.norm(np.cross(qu[b] - qu[a], u.S[:3, a]))
+        assert np.isclose(d_scene, d_book, atol=2e-3), (a, b, d_scene, d_book)
 
 
 def test_each_mode_steps_without_error(scene):
