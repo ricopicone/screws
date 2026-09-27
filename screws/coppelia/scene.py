@@ -40,7 +40,7 @@ class Scene:
         # for everyone who comes after it.
         try:
             self.sim.setStepping(False)
-        except Exception:  # noqa: BLE001 - the simulator may already be gone
+        except Exception:  # noqa: BLE001, S110 - the simulator may already be gone; nothing to do
             pass
         client = getattr(self.sim, "_screws_client", None)
         socket = getattr(client, "socket", None)
