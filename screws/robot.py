@@ -11,6 +11,7 @@ from functools import cached_property
 
 import numpy as np
 
+from . import dynamics as dyn
 from . import kinematics as kin
 from .se3 import adjoint, rp_to_transform, transform_inv
 from .so3 import near_zero, normalize
@@ -212,39 +213,48 @@ class Robot:
         theta = np.asarray(theta, dtype=float)
         return bool(np.all(theta >= self.joint_limits[:, 0]) and np.all(theta <= self.joint_limits[:, 1]))
 
-    # ----- dynamics (arrive in screws 0.2) --------------------------------------------
+    # ----- dynamics ---------------------------------------------------------------------
 
     def _need_inertias(self):
         if self.link_inertias is None or self.link_frames is None:
             raise MissingInertias(
-                f"{self.name} has no link inertias; load a URDF with <inertial> elements or "
-                "call with_inertias(link_frames, link_inertias)"
+                f"{self.name} has no link inertias; load a URDF with <inertial> elements, read "
+                "them off a scene with Arm.robot(inertias=True), or call with_inertias(...)"
             )
-        raise NotImplementedError("dynamics arrive in screws 0.2")
 
-    def inverse_dynamics(self, theta, dtheta, ddtheta, F_tip=None):
-        """tau = M(theta) ddtheta + c(theta, dtheta) + g(theta) + J^T F_tip. MR 8.3."""
+    def inverse_dynamics(self, theta, dtheta, ddtheta, F_tip=None) -> np.ndarray:
+        """tau = M(theta) ddtheta + c(theta, dtheta) + g(theta) + J^T F_tip, with this robot's gravity. MR 8.3."""
         self._need_inertias()
+        return dyn.inverse_dynamics(
+            theta, dtheta, ddtheta, self.gravity, F_tip, self.link_frames, self.link_inertias, self.S
+        )
 
-    def mass_matrix(self, theta):
+    def mass_matrix(self, theta) -> np.ndarray:
         """M(theta). MR 8.3."""
         self._need_inertias()
+        return dyn.mass_matrix(theta, self.link_frames, self.link_inertias, self.S)
 
-    def velocity_quadratic_forces(self, theta, dtheta):
+    def velocity_quadratic_forces(self, theta, dtheta) -> np.ndarray:
         """c(theta, dtheta). MR 8.3."""
         self._need_inertias()
+        return dyn.velocity_quadratic_forces(theta, dtheta, self.link_frames, self.link_inertias, self.S)
 
-    def gravity_forces(self, theta):
-        """g(theta). MR 8.3."""
+    def gravity_forces(self, theta) -> np.ndarray:
+        """g(theta), with this robot's gravity. MR 8.3."""
         self._need_inertias()
+        return dyn.gravity_forces(theta, self.gravity, self.link_frames, self.link_inertias, self.S)
 
-    def end_effector_forces(self, theta, F_tip):
+    def end_effector_forces(self, theta, F_tip) -> np.ndarray:
         """J^T(theta) F_tip. MR 8.3."""
         self._need_inertias()
+        return dyn.end_effector_forces(theta, F_tip, self.link_frames, self.link_inertias, self.S)
 
-    def forward_dynamics(self, theta, dtheta, tau, F_tip=None):
-        """ddtheta from tau. MR 8.5."""
+    def forward_dynamics(self, theta, dtheta, tau, F_tip=None) -> np.ndarray:
+        """ddtheta from tau, with this robot's gravity. MR 8.5."""
         self._need_inertias()
+        return dyn.forward_dynamics(
+            theta, dtheta, tau, self.gravity, F_tip, self.link_frames, self.link_inertias, self.S
+        )
 
     # ----- copies ---------------------------------------------------------------------
 

@@ -8,7 +8,7 @@ names exist so a student can type what the book says.
 
 from __future__ import annotations
 
-from . import kinematics, se3, so3
+from . import dynamics, kinematics, se3, so3
 
 #: MR name -> screws primary name.
 ALIASES: dict[str, str] = {
@@ -46,6 +46,17 @@ ALIASES: dict[str, str] = {
     # chapter 6
     "IKinBody": "ik_body",
     "IKinSpace": "ik_space",
+    # chapter 8
+    "ad": "ad",
+    "InverseDynamics": "inverse_dynamics",
+    "MassMatrix": "mass_matrix",
+    "VelQuadraticForces": "velocity_quadratic_forces",
+    "GravityForces": "gravity_forces",
+    "EndEffectorForces": "end_effector_forces",
+    "ForwardDynamics": "forward_dynamics",
+    "EulerStep": "euler_step",
+    "InverseDynamicsTrajectory": "inverse_dynamics_trajectory",
+    "ForwardDynamicsTrajectory": "forward_dynamics_trajectory",
 }
 
 # Identity aliases: the same object under MR's name.
@@ -77,6 +88,16 @@ FKinBody = kinematics.fk_body
 FKinSpace = kinematics.fk_space
 JacobianBody = kinematics.jacobian_body
 JacobianSpace = kinematics.jacobian_space
+ad = dynamics.ad
+InverseDynamics = dynamics.inverse_dynamics
+MassMatrix = dynamics.mass_matrix
+VelQuadraticForces = dynamics.velocity_quadratic_forces
+GravityForces = dynamics.gravity_forces
+EndEffectorForces = dynamics.end_effector_forces
+ForwardDynamics = dynamics.forward_dynamics
+EulerStep = dynamics.euler_step
+InverseDynamicsTrajectory = dynamics.inverse_dynamics_trajectory
+ForwardDynamicsTrajectory = dynamics.forward_dynamics_trajectory
 
 
 def IKinBody(Blist, M, T, thetalist0, eomg, ev):

@@ -6,10 +6,11 @@ the ``robots`` that ship, the ``urdf`` loader and the ``testing`` helpers. The C
 bridge is ``screws.coppelia``, imported only on request.
 """
 
-from . import kinematics, robots, se3, so3, testing, urdf
+from . import dynamics, kinematics, robots, se3, so3, testing, urdf
 from ._version import __version__
 from .aliases import *
 from .aliases import ALIASES
+from .dynamics import *
 from .kinematics import *
 from .kinematics import IKResult
 from .robot import MissingInertias, Robot
@@ -21,6 +22,7 @@ __all__ = (
         "__version__",
         "ALIASES",
         "IKResult",
+        "dynamics",
         "MissingInertias",
         "Robot",
         "kinematics",
@@ -33,5 +35,6 @@ __all__ = (
     + list(so3.__all__)
     + list(se3.__all__)
     + list(kinematics.__all__)
+    + list(dynamics.__all__)
     + list(ALIASES)
 )
