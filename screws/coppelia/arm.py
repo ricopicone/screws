@@ -77,7 +77,7 @@ class Arm:
         for h in self.handles:
             try:
                 out.append(float(self.sim.getJointForce(h)))
-            except Exception:
+            except Exception:  # noqa: BLE001 - the remote API raises a plain Exception
                 out.append(float("nan"))
         return np.array(out, dtype=float)
 
