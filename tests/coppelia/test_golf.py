@@ -22,12 +22,17 @@ def test_build_green_creates_turf_with_a_cup_and_a_ball_on_top():
         slab, wedge = sim.objects[green.turf[0]], sim.objects[green.turf[-1]]
         assert slab.static and slab.respondable and slab.primitive[0] == sim.primitiveshape_cuboid
         assert wedge.static and wedge.respondable and hasattr(wedge, "mesh")
-        assert np.allclose(slab.color, golf.TURF_COLOUR) and np.allclose(wedge.color, golf.TURF_COLOUR)
+        # the physics pieces are hidden; one smooth visual surface with a round hole is shown
+        assert all(getattr(sim.objects[h], "layer", 1) == 0 for h in green.turf)
+        surface = sim.objects[green.surface]
+        assert surface.static and not surface.respondable and hasattr(surface, "mesh")
+        assert getattr(surface, "layer", 1) != 0 and np.allclose(surface.color, golf.TURF_COLOUR)
+        assert np.isclose(surface.mesh[0][:, 2].max(), green.top)
         cup_floor = sim.objects[green.cup_floor]
         assert cup_floor.static and cup_floor.respondable
         assert np.isclose(green.distance_to_hole(), np.hypot(0.7, 0.1))
         assert not green.holed()
-        handles = [green.ball, *green.turf, green.cup_floor, *green.pin]
+        handles = [green.ball, *green.turf, green.surface, green.cup_floor, *green.pin]
         green.remove()
         assert all(h not in sim.objects for h in handles)
 
@@ -187,3 +192,99 @@ def test_build_green_without_branding_has_no_seal():
     with Scene(sim=two_joint_scene()) as scene:
         green = golf.build_green(scene, ball_position=(0.5, 0.3), hole_position=(0.9, 0.3))
         assert green.seal is None
+
+
+def test_surface_mesh_is_a_closed_slab_with_a_round_hole():
+    V, F = golf.surface_mesh(size=(2.0, 1.0), thickness=0.03, center=(0.2, 0.1), hole=(0.5, 0.2), n=32)
+    edges = {}
+    for tri in F:
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            edges[(min(a, b), max(a, b))] = edges.get((min(a, b), max(a, b)), 0) + 1
+    assert set(edges.values()) == {2}
+    for tri in F:
+        p = V[tri]
+        nrm = np.cross(p[1] - p[0], p[2] - p[0])
+        if np.allclose(p[:, 2], 0.03):
+            assert nrm[2] > 0 and not _point_in_triangle((0.5, 0.2), p[:, :2])
+        elif np.allclose(p[:, 2], 0.0):
+            assert nrm[2] < 0
+
+
+def test_logo_image_keeps_the_artworks_shape_on_turf(tmp_path):
+    from PIL import Image
+
+    src = tmp_path / "banner.png"
+    art = Image.new("RGBA", (400, 200), (0, 0, 0, 0))
+    for x in range(400):
+        for y in range(150):
+            art.putpixel((x, y), (186, 12, 47, 255))  # a red banner with a transparent bottom strip
+    art.save(src)
+    out = golf.logo_image(tmp_path / "logo.png", src, width=800)
+    im = Image.open(out).convert("RGB")
+    assert im.size == (800, 400)
+    assert im.getpixel((10, 10)) == golf.SMU_RED_8BIT
+    assert im.getpixel((10, 390)) == golf.TURF_COLOUR_8BIT  # transparent parts become turf
+
+
+def test_build_green_places_the_logo_after_the_seal(tmp_path):
+    from PIL import Image
+
+    sim = two_joint_scene()
+    seal = tmp_path / "seal.png"
+    seal.write_bytes(b"png")
+    logo = tmp_path / "logo.png"
+    Image.new("RGB", (400, 200), (10, 10, 10)).save(logo)
+    with Scene(sim=sim) as scene:
+        green = golf.build_green(
+            scene, ball_position=(0.5, 0.3), hole_position=(0.9, 0.3),
+            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3, logo_image=logo, logo_width=0.6,
+        )
+        plane = sim.objects[green.logo]
+        assert plane.texture == str(logo) and np.allclose(plane.plane, (0.6, 0.3))  # the image's aspect
+        T = scene.frame(green.logo)
+        assert np.isclose(T[1, 3], -0.15) and T[0, 3] > 0.9 + 0.15 + 0.3  # beside the seal, further along
+        assert np.isclose(T[2, 3], green.top + 0.0005)
+        assert green.logo in green.handles()
+        green.remove()
+        # with a yaw, both planes turn about z and the logo sits along the yawed "right" direction
+        yaw = 0.6
+        g2 = golf.build_green(
+            scene, ball_position=(0.5, 0.3), hole_position=(0.9, 0.3),
+            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3, logo_image=logo, logo_width=0.6, yaw=yaw,
+        )
+        Ts, Tl = scene.frame(g2.seal), scene.frame(g2.logo)
+        assert np.allclose(Ts[:3, 0], [np.cos(yaw), np.sin(yaw), 0]) and np.allclose(Tl[:3, 0], Ts[:3, 0])
+        expected = np.array([0.9, -0.15]) + (0.15 + 0.08 + 0.3) * np.array([np.cos(yaw), np.sin(yaw)])
+        assert np.allclose(Tl[:2, 3], expected)
+
+
+def test_swing_path_is_a_pendulum_about_the_wrist():
+    ball = np.array([0.5, 0.0, golf.BALL_RADIUS])
+    hole = np.array([1.2, 0.0, 0.0])
+    L, gap = 0.3, 0.01
+    sw = golf.swing_path(ball, hole, shaft_length=L, back_angle=0.25, through_angle=0.2, speed=0.3, dt=0.05, gap=gap)
+    T0 = golf.address_pose(ball, hole, back=golf.BALL_RADIUS + 0.01 + gap)
+    pivot = T0[:3, 3] + np.array([0, 0, L])
+    for phase in ("backswing", "downswing", "back"):
+        for T in sw[phase]:
+            assert np.isclose(np.linalg.norm(T[:3, 3] - pivot), L)  # every pose on the arc
+            assert np.isclose(np.linalg.norm(T[:3, 3][1] - T0[1, 3]), 0.0)  # in the swing plane
+            assert so3.is_so3(T[:3, :3])
+    top = sw["backswing"][-1]
+    assert top[0, 3] < T0[0, 3] and top[2, 3] > T0[2, 3]  # back and up
+    assert np.isclose(np.linalg.norm(top[:3, 3] - pivot), L)
+    # the downswing turns at a constant rate speed / L per step and passes through the address pose
+    angles = [np.arctan2(pivot[0] - T[0, 3], pivot[2] - T[2, 3]) for T in sw["downswing"]]
+    assert np.allclose(np.diff(angles), -0.3 / L * 0.05, atol=1e-9)
+    assert min(abs(a) for a in angles) < 0.3 / L * 0.05
+    assert np.isclose(angles[-1], -0.2, atol=0.3 / L * 0.05 + 1e-9)
+    assert np.allclose(sw["back"][-1][:3, 3], T0[:3, 3])  # ends back at the address pose
+
+
+def test_camera_yaw_and_forward_follow_the_view():
+    yaw = golf.camera_yaw((1.75, -1.35, 0.95), (0.55, 0.25, 0.2))
+    right = np.array([np.cos(yaw), np.sin(yaw)])
+    view = np.array([0.55 - 1.75, 0.25 + 1.35])
+    assert np.isclose(np.cross(np.r_[right, 0], np.r_[view, 0])[2], np.linalg.norm(view))  # right x view = up
+    fwd = golf.camera_forward((1.75, -1.35, 0.95), (0.55, 0.25, 0.2))
+    assert np.allclose(fwd, view / np.linalg.norm(view))

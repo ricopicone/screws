@@ -117,17 +117,21 @@ joint frames (omega is the joint's z axis, v = -omega x q).
 ## An example: putting
 
 `examples/putt.py` builds a green in a running CoppeliaSim (turf with a real cup cut through
-it, a pin, a ball, and a kinematic putter on the UR5's flange), addresses the ball, strokes
-straight through it along the line to the cup at a chosen face speed, returns to the address
-pose, and reports whether the ball dropped:
+it, a pin and flag, a ball, and a putter on the UR5's flange), drives the arm in kinematic
+mode, addresses the ball, swings the putter through it like a pendulum at a chosen face
+speed, returns to the address pose, and reports whether the ball dropped. It records the
+putt at 1080p and, given PNGs, lays a seal and a logo on the green and texts the flag:
 
 ```
-uv run python examples/putt.py --speed 0.3 --video putt.mp4
+uv run python examples/putt.py --video putt.mp4 --flag-text SMU --seal seal.png --logo logo.png
 ```
 
 The pieces are in `screws.coppelia.golf`: `build_green`, `attach_putter` (whose `.robot()`
-moves `M` from the flange to the putter face), `address_pose`, `stroke_path` and `putt`.
-Vary the speed, the hole position or the ball's friction and see what the physics does.
+moves `M` from the flange to the putter face), `address_pose`, `swing_path`, `putt`, and the
+image helpers `text_image`, `seal_image` and `logo_image`. Vary the speed, the hole position
+or the ball's friction and see what the physics does. Two lessons the example encodes: the
+stock model's demo script is removed when the bridge takes the arm (it would fight you), and
+a tool that must strike repeatably runs the arm in `arm.mode("kinematic")`.
 
 ## Two UR5s
 

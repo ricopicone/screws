@@ -44,6 +44,7 @@ class FakeSim:
     jointdynctrl_position = 4
     drawing_lines = 1
     shapeintparam_static = 3003
+    objintparam_visibility_layer = 10
     shapeintparam_respondable = 3004
     colorcomponent_ambient_diffuse = 0
     primitiveshape_cuboid = 1
@@ -212,6 +213,8 @@ class FakeSim:
             self.objects[h].static = bool(value)
         elif param == self.shapeintparam_respondable:
             self.objects[h].respondable = bool(value)
+        elif param == self.objintparam_visibility_layer:
+            self.objects[h].layer = int(value)
 
     def setStepping(self, enable=True):
         self.stepping = enable

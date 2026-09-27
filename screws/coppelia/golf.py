@@ -15,7 +15,8 @@ import numpy as np
 
 from ..robot import Robot
 from ..se3 import rp_to_transform, trans
-from ..trajectory import cartesian_trajectory, joint_trajectory
+from ..so3 import exp3, rot, vec_to_so3
+from ..trajectory import cartesian_trajectory, joint_trajectory, quintic_time_scaling
 
 __all__ = [
     "BALL_MASS",
@@ -30,10 +31,15 @@ __all__ = [
     "address_pose",
     "attach_putter",
     "build_green",
+    "camera_forward",
+    "camera_yaw",
     "green_pieces",
+    "logo_image",
     "putt",
     "seal_image",
     "stroke_path",
+    "surface_mesh",
+    "swing_path",
     "text_image",
 ]
 
@@ -66,12 +72,14 @@ class Green:
 
     scene: object
     ball: int
-    turf: list[int]  # the slabs and the wedge insert, all static convex pieces
+    turf: list[int]  # the slabs and the wedge insert, all static convex pieces (hidden)
+    surface: int  # the one smooth visual surface with the round hole (no physics)
     cup_floor: int
     pin: tuple[int, ...]
     hole_position: np.ndarray  # (x, y, top) at the turf surface
     top: float  # height of the turf surface above the floor
     seal: int | None = None
+    logo: int | None = None
 
     def ball_position(self) -> np.ndarray:
         return np.asarray(self.scene.sim.getObjectPosition(self.ball, self.scene.sim.handle_world), float)
@@ -90,7 +98,8 @@ class Green:
         return self.distance_to_hole() <= HOLE_RADIUS and p[2] < self.top - BALL_RADIUS / 2
 
     def handles(self) -> list[int]:
-        return [self.ball, *self.turf, self.cup_floor, *self.pin] + ([self.seal] if self.seal is not None else [])
+        extras = [h for h in (self.seal, self.logo) if h is not None]
+        return [self.ball, *self.turf, self.surface, self.cup_floor, *self.pin, *extras]
 
     def remove(self) -> None:
         self.scene.untrack(*self.handles())
@@ -109,6 +118,19 @@ def _font(size: int):
         if Path(candidate).exists():
             return ImageFont.truetype(candidate, size)
     return ImageFont.load_default()
+
+
+def camera_yaw(position, look_at) -> float:
+    """The yaw (about z) whose x direction is a camera's horizontal right: what to pass as
+    build_green's ``yaw`` so text laid on the green reads correctly from that camera."""
+    d = np.asarray(look_at, float)[:2] - np.asarray(position, float)[:2]
+    return float(np.arctan2(d[1], d[0]) - np.pi / 2)
+
+
+def camera_forward(position, look_at) -> np.ndarray:
+    """The horizontal unit vector pointing away from a camera: "up" in its image on the green."""
+    d = np.asarray(look_at, float)[:2] - np.asarray(position, float)[:2]
+    return d / np.linalg.norm(d)
 
 
 def text_image(path, text: str, *, fg=(255, 255, 255), bg=SMU_RED_8BIT, size=(560, 360)) -> Path:
@@ -151,6 +173,92 @@ def seal_image(path, artwork, *, disc=(255, 255, 255), background=TURF_COLOUR_8B
     path = Path(path)
     im.save(path)
     return path
+
+
+def logo_image(path, artwork, *, background=TURF_COLOUR_8BIT, width: int = 1024) -> Path:
+    """Write a PNG of a logo (a PNG with transparency) composited onto the turf colour at the
+    artwork's own aspect ratio, for a plane laid flat on the green. Colours are kept."""
+    from PIL import Image
+
+    art = Image.open(artwork).convert("RGBA")
+    height = max(1, round(width * art.size[1] / art.size[0]))
+    art = art.resize((width, height), Image.LANCZOS)
+    im = Image.new("RGB", (width, height), background)
+    im.paste(art, (0, 0), art)
+    path = Path(path)
+    im.save(path)
+    return path
+
+
+def surface_mesh(*, size, thickness, center, hole, hole_radius=HOLE_RADIUS, n: int = 96):
+    """Vertices (V, 3) and triangles (F, 3) of a rectangular slab with a round hole through it:
+    the turf as one smooth *visual* surface (the physics uses green_pieces underneath).
+
+    size is (sx, sy) and center (cx, cy) of the slab, whose bottom is at z = 0 and top at
+    z = thickness; hole is (hx, hy). Outward normals, closed manifold, so it serves as a
+    static respondable mesh.
+    """
+    sx, sy = float(size[0]), float(size[1])
+    cx, cy = float(center[0]), float(center[1])
+    hx, hy = float(hole[0]), float(hole[1])
+    xmin, xmax, ymin, ymax = cx - sx / 2, cx + sx / 2, cy - sy / 2, cy + sy / 2
+    if not (xmin < hx - hole_radius and hx + hole_radius < xmax and ymin < hy - hole_radius and hy + hole_radius < ymax):
+        raise ValueError("the hole must lie inside the slab")
+    angles = 2 * np.pi * np.arange(n) / n
+    inner = [(a, np.array([hx + hole_radius * np.cos(a), hy + hole_radius * np.sin(a)])) for a in angles]
+
+    def ray_to_edge(a):
+        d = np.array([np.cos(a), np.sin(a)])
+        ts = []
+        if d[0] > 1e-12:
+            ts.append((xmax - hx) / d[0])
+        if d[0] < -1e-12:
+            ts.append((xmin - hx) / d[0])
+        if d[1] > 1e-12:
+            ts.append((ymax - hy) / d[1])
+        if d[1] < -1e-12:
+            ts.append((ymin - hy) / d[1])
+        t = min(ts)
+        return np.array([hx, hy]) + t * d
+
+    outer = [(a, ray_to_edge(a)) for a in angles]
+    for corner in ((xmax, ymax), (xmin, ymax), (xmin, ymin), (xmax, ymin)):
+        a = float(np.arctan2(corner[1] - hy, corner[0] - hx)) % (2 * np.pi)
+        if all(abs(a - b) > 1e-9 for b, _ in outer):
+            outer.append((a, np.array(corner, float)))
+    outer.sort(key=lambda ap: ap[0])
+    ni, no = len(inner), len(outer)
+    # vertex layout: top inner, top outer, bottom inner, bottom outer
+    TI, TO, BI, BO = 0, ni, ni + no, ni + no + ni
+    V = []
+    for z in (thickness, 0.0):
+        V += [[p[0], p[1], z] for _, p in inner]
+        V += [[p[0], p[1], z] for _, p in outer]
+    V = np.array(V)
+    F = []
+    # top: zip the two angle-sorted polygons; bottom: the same with reversed winding
+    i = j = 0
+    while i < ni or j < no:
+        a_next = inner[(i + 1) % ni][0] + (2 * np.pi if i + 1 >= ni else 0.0) if i < ni else np.inf
+        b_next = outer[(j + 1) % no][0] + (2 * np.pi if j + 1 >= no else 0.0) if j < no else np.inf
+        if a_next <= b_next:
+            F.append([TI + i % ni, TO + j % no, TI + (i + 1) % ni])
+            i += 1
+        else:
+            F.append([TI + i % ni, TO + j % no, TO + (j + 1) % no])
+            j += 1
+    top_count = len(F)
+    for tri in list(F[:top_count]):
+        F.append([tri[0] + BI, tri[2] + BI, tri[1] + BI])
+    for j in range(no):  # outer walls, outward
+        k = (j + 1) % no
+        F.append([BO + j, BO + k, TO + k])
+        F.append([BO + j, TO + k, TO + j])
+    for i in range(ni):  # hole walls, facing into the cup
+        k = (i + 1) % ni
+        F.append([TI + i, TI + k, BI + k])
+        F.append([TI + i, BI + k, BI + i])
+    return V, np.array(F, dtype=int)
 
 
 def _ray_to_square(hx, hy, a, xmin, xmax, ymin, ymax):
@@ -238,6 +346,10 @@ def build_green(
     seal_image=None,
     seal_position=None,
     seal_size: float = 0.35,
+    logo_image=None,
+    logo_position=None,
+    logo_width: float = 0.6,
+    yaw: float = 0.0,
 ) -> Green:
     """Lay turf with a real cup at (x, y), a pin in it, and a ball at (x, y) on the surface.
 
@@ -249,8 +361,11 @@ def build_green(
 
     flag_image (a PNG, e.g. from text_image) textures the flag; seal_image (e.g. from
     seal_image) is laid flat on the turf as a seal_size square at seal_position (x, y),
-    default: beside the line, on the camera side. Everything built is removed when the Scene
-    exits, or by Green.remove().
+    default: beside the line, on the camera side; logo_image (e.g. from logo_image) is laid
+    flat logo_width wide at logo_position, default: just past the seal along the yawed
+    direction. yaw (radians about z) turns both so their text reads along a camera's
+    horizontal: pass the camera's right-hand direction, e.g. golf.camera_yaw(position, look_at).
+    Everything built is removed when the Scene exits, or by Green.remove().
     """
     sim = scene.sim
     bx, by = float(ball_position[0]), float(ball_position[1])
@@ -269,6 +384,12 @@ def build_green(
         _shape(sim, h, static=True, respondable=True)
         _colour(sim, h, TURF_COLOUR)
         turf.append(h)
+    for h in turf:  # the physics pieces are invisible; one smooth surface is what you see
+        sim.setObjectInt32Param(h, sim.objintparam_visibility_layer, 0)
+    V, F = surface_mesh(size=size, thickness=thickness, center=center, hole=(hx, hy), hole_radius=HOLE_RADIUS)
+    surface = sim.createMeshShape(0, 0.0, [float(x) for x in V.reshape(-1)], [int(k) for k in F.reshape(-1)])
+    _shape(sim, surface, static=True, respondable=False)
+    _colour(sim, surface, TURF_COLOUR)
     cup_floor = sim.createPrimitiveShape(sim.primitiveshape_cylinder, [2 * HOLE_RADIUS, 2 * HOLE_RADIUS, 0.004], 0)
     _shape(sim, cup_floor, static=True, respondable=True)
     sim.setObjectPosition(cup_floor, [hx, hy, 0.002], sim.handle_world)
@@ -290,13 +411,26 @@ def build_green(
         _shape(sim, flag, static=True, respondable=False)
         sim.setObjectPosition(flag, [hx + 0.004 + flag_w / 2, hy, pin_height - flag_h / 2 - 0.01], sim.handle_world)
         _colour(sim, flag, SMU_RED)
+    R_yaw = rot([0.0, 0.0, 1.0], yaw)
+    right = R_yaw[:2, 0]
     seal = None
+    if seal_position is None:
+        seal_position = (center[0] + 0.15, center[1] - 0.45)
     if seal_image is not None:
-        if seal_position is None:
-            seal_position = (center[0] + 0.15, center[1] - 0.45)
         seal, _, _ = sim.createTexture(str(seal_image), 0, [seal_size, seal_size])
         _shape(sim, seal, static=True, respondable=False)
-        scene.set_frame(seal, trans([float(seal_position[0]), float(seal_position[1]), thickness + 0.0005]))
+        scene.set_frame(seal, rp_to_transform(R_yaw, [float(seal_position[0]), float(seal_position[1]), thickness + 0.0005]))
+    logo = None
+    if logo_image is not None:
+        from PIL import Image
+
+        w, h = Image.open(logo_image).size
+        logo_h = logo_width * h / w
+        if logo_position is None:
+            logo_position = np.asarray(seal_position, float) + (seal_size / 2 + 0.08 + logo_width / 2) * right
+        logo, _, _ = sim.createTexture(str(logo_image), 0, [logo_width, logo_h])
+        _shape(sim, logo, static=True, respondable=False)
+        scene.set_frame(logo, rp_to_transform(R_yaw, [float(logo_position[0]), float(logo_position[1]), thickness + 0.0005]))
     ball = sim.createPrimitiveShape(sim.primitiveshape_spheroid, [2 * BALL_RADIUS] * 3, 0)
     sim.setShapeMass(ball, BALL_MASS)
     _shape(sim, ball, static=False, respondable=True)
@@ -306,7 +440,7 @@ def build_green(
     sim.setEngineFloatParam(sim.bullet_body_lineardamping, ball, damping)
     sim.setEngineFloatParam(sim.bullet_body_angulardamping, ball, damping)
     _colour(sim, ball, (0.95, 0.95, 0.95))
-    green = Green(scene, ball, turf, cup_floor, (pin, flag), np.array([hx, hy, thickness]), thickness, seal)
+    green = Green(scene, ball, turf, surface, cup_floor, (pin, flag), np.array([hx, hy, thickness]), thickness, seal, logo)
     scene.track(*green.handles())
     return green
 
@@ -397,6 +531,49 @@ def stroke_path(ball, hole, *, back: float = 0.06, through: float = 0.04, speed:
     return [rp_to_transform(T0[:3, :3], T0[:3, 3] + min(k * step, length) * x) for k in range(1, n + 1)]
 
 
+def swing_path(
+    ball,
+    hole,
+    *,
+    shaft_length: float,
+    back_angle: float = 0.25,
+    through_angle: float = 0.2,
+    speed: float = 0.3,
+    dt: float = 0.01,
+    gap: float = 0.01,
+    face_thickness: float = 0.02,
+    back_time: float = 1.0,
+    return_time: float = 1.0,
+) -> dict:
+    """A putting stroke as a pendulum swing of the putter about the wrist.
+
+    The address pose puts the face gap metres behind the ball's surface. The pivot is the top
+    of the shaft; the face swings in the vertical plane of the target line: back and up by
+    back_angle (quintic timing over back_time), then down through the ball at a constant
+    angular rate speed / shaft_length (so the face meets the ball at that speed), on to
+    through_angle, and finally back to the address pose over return_time.
+
+    Returns {"backswing": [...], "downswing": [...], "back": [...]} of face poses, one per dt.
+    """
+    T0 = address_pose(ball, hole, back=BALL_RADIUS + face_thickness / 2 + gap)
+    R0, o0 = T0[:3, :3], T0[:3, 3]
+    y = R0[:, 1]
+    pivot = o0 + np.array([0.0, 0.0, shaft_length])
+
+    def pose(phi):  # positive phi swings the face backward (-x) and up
+        R = exp3(vec_to_so3(-y * phi))
+        return rp_to_transform(R @ R0, pivot + R @ (o0 - pivot))
+
+    n_back = max(1, round(back_time / dt))
+    backswing = [pose(back_angle * quintic_time_scaling(back_time, k * dt)) for k in range(1, n_back + 1)]
+    omega = speed / shaft_length
+    n_down = max(1, int(np.ceil((back_angle + through_angle) / (omega * dt) - 1e-9)))
+    downswing = [pose(max(back_angle - k * omega * dt, -through_angle)) for k in range(1, n_down + 1)]
+    n_ret = max(1, round(return_time / dt))
+    back = [pose(-through_angle * (1.0 - quintic_time_scaling(return_time, k * dt))) for k in range(1, n_ret + 1)]
+    return {"backswing": backswing, "downswing": downswing, "back": back}
+
+
 @dataclass
 class PuttResult:
     holed: bool
@@ -425,30 +602,34 @@ def putt(
     robot_face: Robot,
     green: Green,
     *,
-    back: float = 0.06,
-    through: float = 0.05,
     speed: float = 0.3,
+    back_angle: float = 0.25,
+    through_angle: float = 0.2,
+    gap: float = 0.01,
     lift: float = 0.12,
     approach_time: float = 2.0,
     settle_time: float = 5.0,
     seed=None,
+    shaft_length: float = 0.30,
+    face_thickness: float = 0.02,
 ) -> PuttResult:
-    """Address the ball, stroke through it along the line to the hole, and watch it roll.
+    """Address the ball, swing the putter through it toward the hole, and watch it roll.
 
     robot_face is the arm's Robot with M at the putter face (Putter.robot). Put the arm in
-    kinematic mode (arm.mode("kinematic")) and start the simulation first. The approach goes in joint space to a pose lift
-    metres above the address pose, descends straight down onto it, pauses, then strokes at a
-    constant face speed. After the stroke the putter returns to the address pose and waits
-    there, out of the shot, until the ball stops or settle_time has passed.
+    kinematic mode (arm.mode("kinematic")) and start the simulation first. The approach goes
+    in joint space to a pose lift metres above the address pose and descends straight onto
+    it; the stroke is swing_path's pendulum: backswing, a pause, a downswing meeting the ball
+    at speed, follow-through, and a return to the address pose, where the arm waits until the
+    ball stops or settle_time has passed.
 
-    In kinematic mode the face follows the stroke exactly; 0.3 m/s rolls the ball about
-    0.3 m on the default green. Use a 10 ms control step (scene.set_time_step(0.01)): at the
-    default 50 ms the face jumps 15 mm per step and the strike is no longer clean.
+    Use a 10 ms control step (scene.set_time_step(0.01)): at the default 50 ms the face jumps
+    15 mm per step and the strike is no longer clean. 0.3 m/s rolls the ball about 0.3 m on
+    the default green.
     """
     dt = scene.dt
     ball = green.ball_position()
     hole = green.hole_position
-    T_address = address_pose(ball, hole, back=back)
+    T_address = address_pose(ball, hole, back=BALL_RADIUS + face_thickness / 2 + gap)
     T_lift = trans([0.0, 0.0, lift]) @ T_address
     theta_now = arm.theta()
     seeds = [theta_now] if seed is None else [np.asarray(seed, float), theta_now]
@@ -464,25 +645,32 @@ def putt(
                 ball_path.append(green.ball_position())
                 face_path.append(robot_face.fk(arm.theta())[:3, 3])
 
+    def follow(poses, theta, what):
+        out = []
+        for T in poses:
+            theta = _ik_or_raise(robot_face, T, [theta], what)
+            out.append(theta)
+        return out
+
     n_approach = max(2, round(approach_time / dt))
     go(joint_trajectory(theta_now, theta_lift, approach_time, n_approach)[1:])
-    theta = theta_lift
-    descent = []
-    for T in cartesian_trajectory(T_lift, T_address, approach_time / 2, max(2, n_approach // 2))[1:]:
-        theta = _ik_or_raise(robot_face, T, [theta], "descent")
-        descent.append(theta)
+    descent = follow(cartesian_trajectory(T_lift, T_address, approach_time / 2, max(2, n_approach // 2))[1:], theta_lift, "descent")
     go(descent)
-    go([theta_address] * round(0.5 / dt))  # a still moment; an unsent target drifts
+    go([theta_address] * round(0.5 / dt))  # a still moment at address
 
-    theta = theta_address
-    stroke = []
-    for T in stroke_path(ball, hole, back=back, through=through, speed=speed, dt=dt):
-        theta = _ik_or_raise(robot_face, T, [theta], "stroke")
-        stroke.append(theta)
-    go(stroke, log=True)
-    n_back = max(2, round(1.0 / dt))
-    go(joint_trajectory(theta, theta_address, 1.0, n_back)[1:], log=True)
-    theta = theta_address
+    swing = swing_path(
+        ball, hole, shaft_length=shaft_length, back_angle=back_angle, through_angle=through_angle,
+        speed=speed, dt=dt, gap=gap, face_thickness=face_thickness,
+    )
+    backswing = follow(swing["backswing"], theta_address, "backswing")
+    go(backswing, log=True)
+    go([backswing[-1]] * round(0.3 / dt), log=True)  # the pause at the top
+    downswing = follow(swing["downswing"], backswing[-1], "downswing")
+    go(downswing, log=True)
+    go([downswing[-1]] * round(0.3 / dt), log=True)  # hold the follow-through
+    back = follow(swing["back"], downswing[-1], "return")
+    go(back, log=True)
+    theta = back[-1]
     for k in range(round(settle_time / dt)):
         go([theta], log=True)
         if k > round(0.5 / dt) and green.ball_speed() < 2e-3:
