@@ -1,0 +1,20 @@
+<?xml version="1.0" ?>
+<!-- The RRP arm of the course notes, section 4.3 (URDF). Lengths in metres, angles in radians. -->
+<robot name="rrp">
+  <joint name="joint1" type="continuous">
+    <parent link="base_link"/> <child link="link1"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/> <axis xyz="0 0 1"/>
+  </joint>
+  <joint name="joint2" type="continuous">
+    <parent link="link1"/> <child link="link2"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/> <axis xyz="0 -1 0"/>
+  </joint>
+  <joint name="joint3" type="prismatic">
+    <parent link="link2"/> <child link="link3"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/> <axis xyz="1 0 0"/>
+  </joint>
+  <joint name="ee_joint" type="fixed">
+    <parent link="link3"/> <child link="ee_link"/>
+    <origin xyz="0.5 0 0" rpy="0 1.5708 0"/>
+  </joint>
+</robot>
