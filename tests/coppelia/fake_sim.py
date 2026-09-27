@@ -43,6 +43,7 @@ class FakeSim:
     drawing_lines = 1
     shapeintparam_static = 3003
     shapeintparam_respondable = 3004
+    sceneobject_visionsensor = 9
 
     def __init__(self, dt: float = 0.05):
         self.dt = dt
@@ -226,6 +227,33 @@ class FakeSim:
 
     def getSimulationTimeStep(self):
         return self.dt
+
+    def createVisionSensor(self, options, int_params, float_params):
+        h = self.add(f"/visionSensor{len(self.objects)}", "visionsensor", np.eye(4))
+        self.objects[h].resolution = (int(int_params[0]), int(int_params[1]))
+        self.calls.append(("createVisionSensor", options, list(int_params), list(float_params)))
+        return h
+
+    def getVisionSensorImg(self, h, options=0, pos=None, size=None):
+        # Bottom-up RGB bytes, as CoppeliaSim returns them: the bottom row is "ground" (brown),
+        # the top row is "sky" (blue), so an upright frame has blue at row 0.
+        w, hh = self.objects[h].resolution
+        img = np.zeros((hh, w, 3), dtype=np.uint8)
+        img[:, :, 2] = np.linspace(0, 255, hh, dtype=np.uint8)[:, None]  # blue grows with row index
+        img[0, :, 0] = 120  # bottom row (index 0 in sensor order) is brown-ish ground
+        img[:, :, 1] = int(self.time * 1000) % 256  # changes every step
+        return img.tobytes(), [w, hh]
+
+    def handleVisionSensor(self, h):
+        return 0
+
+    def removeObjects(self, handles, delay=False):
+        for h in handles:
+            o = self.objects.pop(h)
+            self.by_path.pop(o.path, None)
+            if o.parent in self.objects:
+                self.objects[o.parent].children.remove(h)
+        self.calls.append(("removeObjects", list(handles)))
 
     def addDrawingObject(self, *args):
         self.drawings.append(list(args))

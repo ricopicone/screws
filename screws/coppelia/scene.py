@@ -7,9 +7,11 @@ from collections.abc import Callable
 
 import numpy as np
 
+from .. import se3, so3
 from . import _sim
 from .arm import Arm
 from .log import Log
+from .video import Recorder
 
 __all__ = ["Scene"]
 
@@ -28,6 +30,8 @@ class Scene:
         self.started = False
         self.log = Log() if log else None
         self._triads: dict[str, list[int]] = {}
+        self._recorders: list[Recorder] = []
+        self._created_sensors: list[int] = []
 
     def __enter__(self):
         return self
@@ -35,6 +39,12 @@ class Scene:
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.started:
             self.stop()
+        if self._created_sensors:
+            try:
+                self.sim.removeObjects(list(self._created_sensors))
+            except Exception:  # noqa: BLE001, S110 - the simulator may already be gone
+                pass
+            self._created_sensors.clear()
         # De-register as a stepping client: the server advances only when every registered
         # stepping client has called step(), so a client that leaves silently freezes the clock
         # for everyone who comes after it.
@@ -118,6 +128,54 @@ class Scene:
         for h in self._triads.pop(name, []):
             self.sim.removeDrawingObject(h)
 
+    def camera(
+        self,
+        path: str | None = None,
+        *,
+        position=(1.5, -1.5, 1.0),
+        look_at=(0.0, 0.0, 0.4),
+        resolution=(640, 480),
+        fov_deg: float = 60.0,
+    ) -> int:
+        """A vision sensor to record from: the one at ``path``, or a new perspective sensor
+        placed at ``position`` looking at ``look_at`` with the image's up along world z. A
+        created sensor is removed when the Scene exits."""
+        if path is not None:
+            return self._handle(path)
+        w, h = int(resolution[0]), int(resolution[1])
+        handle = int(
+            self.sim.createVisionSensor(
+                1 + 2,  # explicit handling, perspective projection
+                [w, h, 0, 0],
+                [0.01, 10.0, float(np.deg2rad(fov_deg)), 0.1, 0, 0, 0, 0, 0, 0, 0],
+            )
+        )
+        p = np.asarray(position, dtype=float)
+        z = np.asarray(look_at, dtype=float) - p  # the sensor looks along its +z axis
+        z = z / np.linalg.norm(z)
+        up = np.array([0.0, 0.0, 1.0])
+        if abs(float(up @ z)) > 0.999:  # looking straight up or down: any horizontal up
+            up = np.array([0.0, 1.0, 0.0])
+        y = up - float(up @ z) * z  # image up: world up made perpendicular to the view
+        y = y / np.linalg.norm(y)
+        x = np.cross(y, z)
+        R = np.column_stack([x, y, z])
+        assert so3.is_so3(R)
+        self.sim.setObjectMatrix(handle, _sim.transform_to_matrix12(se3.rp_to_transform(R, p)), self.sim.handle_world)
+        self._created_sensors.append(handle)
+        return handle
+
+    def record_video(self, path, *, camera=None, every: int = 1, **camera_kwargs) -> Recorder:
+        """A Recorder context: ``with scene.record_video("run.mp4") as rec: scene.run(...)``.
+
+        ``camera`` is a sensor handle or path; None creates one with ``camera_kwargs``
+        (position, look_at, resolution, fov_deg). Frames are grabbed every ``every`` steps
+        and the movie plays at simulated time. Needs screws[video] to save.
+        """
+        rec = Recorder(self, path, camera=-1, every=every)  # validates the extension first
+        rec.camera = self.camera(**camera_kwargs) if camera is None else self._handle(camera)
+        return rec
+
     def arm(self, path: str, joints=None) -> Arm:
         """The Arm under path; ``joints`` names a subset (aliases or paths) when a tool adds its own."""
         return Arm(self, path, joints)
@@ -148,5 +206,7 @@ class Scene:
                 arm.command(u)
             if log:
                 self.record(arm, u, theta=theta, dtheta=dtheta)
+            for rec in list(self._recorders):
+                rec.tick()
             self.step()
         return self.log

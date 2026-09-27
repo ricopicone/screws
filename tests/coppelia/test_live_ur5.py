@@ -87,3 +87,15 @@ def test_scene_inertias_are_plausible(scene):
         assert np.all(np.linalg.eigvalsh(G[:3, :3]) > 0)
     g = r.gravity_forces(np.zeros(6))
     assert np.all(np.isfinite(g))
+
+
+def test_records_a_movie_of_twenty_steps(scene, tmp_path):
+    arm = scene.arm("/UR5")
+    arm.mode("position")
+    theta0 = arm.theta()
+    with scene.record_video(tmp_path / "ur5.mp4", resolution=(320, 240)) as rec:
+        scene.run(lambda t, th, dth: theta0 + 0.3 * np.sin(2 * t), duration=1.0, arm=arm)
+    assert rec.frames.shape == (20, 240, 320, 3)
+    assert rec.saved is not None and rec.saved.stat().st_size > 1000
+    # the picture is not blank and changes as the arm moves
+    assert rec.frames[0].std() > 5 and not np.array_equal(rec.frames[0], rec.frames[-1])
