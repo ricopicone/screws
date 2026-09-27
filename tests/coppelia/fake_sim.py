@@ -254,6 +254,12 @@ class FakeSim:
         self.objects[h].velocity = np.zeros(3)
         return h
 
+    def createMeshShape(self, options, shading_angle, vertices, indices):
+        h = self.add(f"/Mesh{len(self.objects)}", "shape", np.eye(4), static=True)
+        self.objects[h].mesh = (np.asarray(vertices, float).reshape(-1, 3), np.asarray(indices, int).reshape(-1, 3))
+        self.objects[h].engine = {}
+        return h
+
     def setShapeMass(self, h, m):
         self.objects[h].mass = float(m)
 

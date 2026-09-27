@@ -123,3 +123,4 @@ def test_putt_moves_the_ball_toward_the_hole(scene):
     assert end[0] - start[0] > 0.15  # rolled toward the hole along +x
     assert abs(end[1] - start[1]) < 0.05  # and stayed on the line
     assert res.distance < 0.25
+    assert res.face_path[:, 2].min() > green.top + 0.002  # the putter never dips into the turf

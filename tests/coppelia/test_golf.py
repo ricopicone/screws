@@ -6,7 +6,7 @@ from screws.coppelia import Scene, golf
 from tests.coppelia.fake_sim import two_joint_scene
 
 
-def test_build_green_creates_a_dynamic_ball_with_the_chosen_material():
+def test_build_green_creates_turf_with_a_cup_and_a_ball_on_top():
     sim = two_joint_scene()
     with Scene(sim=sim) as scene:
         green = golf.build_green(scene, ball_position=(0.5, 0.0), hole_position=(1.2, 0.1))
@@ -15,24 +15,59 @@ def test_build_green_creates_a_dynamic_ball_with_the_chosen_material():
         assert np.isclose(ball.primitive[1][0], 2 * golf.BALL_RADIUS)
         assert not ball.static and ball.respondable and np.isclose(ball.mass, golf.BALL_MASS)
         assert ball.engine[sim.bullet_body_friction] == pytest.approx(0.8)
-        assert np.allclose(green.ball_position(), [0.5, 0.0, golf.BALL_RADIUS])
-        assert np.allclose(green.hole_position, [1.2, 0.1, 0.0])
-        assert sim.objects[green.hole].static and not getattr(sim.objects[green.hole], "respondable", False)
+        # the ball starts on top of the turf, the hole position is on the turf surface
+        assert np.allclose(green.ball_position(), [0.5, 0.0, green.top + golf.BALL_RADIUS])
+        assert np.allclose(green.hole_position, [1.2, 0.1, green.top])
+        turf = sim.objects[green.turf]
+        assert turf.static and turf.respondable and hasattr(turf, "mesh")
+        assert np.allclose(turf.color, golf.TURF_COLOUR)
+        cup_floor = sim.objects[green.cup_floor]
+        assert cup_floor.static and cup_floor.respondable
         assert np.isclose(green.distance_to_hole(), np.hypot(0.7, 0.1))
         assert not green.holed()
+        handles = [green.ball, green.turf, green.cup_floor, *green.pin]
         green.remove()
-        assert green.ball not in sim.objects and green.hole not in sim.objects
+        assert all(h not in sim.objects for h in handles)
 
 
-def test_holed_needs_position_and_low_speed():
+def test_holed_means_the_ball_has_dropped_into_the_cup():
     sim = two_joint_scene()
     with Scene(sim=sim) as scene:
         green = golf.build_green(scene, ball_position=(0.5, 0.0), hole_position=(1.2, 0.1))
-        sim.setObjectPosition(green.ball, [1.21, 0.09, golf.BALL_RADIUS])
+        sim.setObjectPosition(green.ball, [1.21, 0.09, green.top + golf.BALL_RADIUS])
+        assert not green.holed()  # sitting on the rim's plane does not count
+        sim.setObjectPosition(green.ball, [1.21, 0.09, golf.BALL_RADIUS + 0.002])
         assert green.holed()
-        sim.objects[green.ball].velocity = np.array([0.5, 0, 0])
-        assert not green.holed()  # rolling over the hole does not count
-        assert green.holed(speed_max=1.0)
+
+
+def test_green_mesh_is_a_closed_slab_with_a_round_hole():
+    V, F = golf.green_mesh(size=(2.0, 1.0), thickness=0.03, center=(0.2, 0.1), hole=(0.5, 0.2), hole_radius=0.054, n=32)
+    assert V.shape[1] == 3 and F.shape[1] == 3
+    # closed manifold: every edge is shared by exactly two triangles
+    edges = {}
+    for tri in F:
+        for a, b in ((tri[0], tri[1]), (tri[1], tri[2]), (tri[2], tri[0])):
+            edges[(min(a, b), max(a, b))] = edges.get((min(a, b), max(a, b)), 0) + 1
+    assert set(edges.values()) == {2}
+    # top faces point up, bottom faces point down, and no top triangle covers the hole centre
+    for tri in F:
+        p = V[tri]
+        nrm = np.cross(p[1] - p[0], p[2] - p[0])
+        if np.allclose(p[:, 2], 0.03):
+            assert nrm[2] > 0
+            assert not _point_in_triangle((0.5, 0.2), p[:, :2])
+        elif np.allclose(p[:, 2], 0.0):
+            assert nrm[2] < 0
+    assert V[:, 0].min() == pytest.approx(-0.8) and V[:, 0].max() == pytest.approx(1.2)
+    assert V[:, 1].min() == pytest.approx(-0.4) and V[:, 1].max() == pytest.approx(0.6)
+
+
+def _point_in_triangle(q, tri):
+    (x1, y1), (x2, y2), (x3, y3) = tri
+    d1 = (q[0] - x2) * (y1 - y2) - (x1 - x2) * (q[1] - y2)
+    d2 = (q[0] - x3) * (y2 - y3) - (x2 - x3) * (q[1] - y3)
+    d3 = (q[0] - x1) * (y3 - y1) - (x3 - x1) * (q[1] - y1)
+    return not ((d1 < 0 or d2 < 0 or d3 < 0) and (d1 > 0 or d2 > 0 or d3 > 0))
 
 
 def test_attach_putter_parents_a_kinematic_face_to_the_last_link_with_the_right_offset():

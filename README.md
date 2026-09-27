@@ -116,9 +116,10 @@ joint frames (omega is the joint's z axis, v = -omega x q).
 
 ## An example: putting
 
-`examples/putt.py` builds a green in a running CoppeliaSim (a ball, a cup and a kinematic
-putter on the UR5's flange), addresses the ball, strokes straight through it along the line
-to the hole at a chosen face speed, and reports where the ball stopped:
+`examples/putt.py` builds a green in a running CoppeliaSim (turf with a real cup cut through
+it, a pin, a ball, and a kinematic putter on the UR5's flange), addresses the ball, strokes
+straight through it along the line to the cup at a chosen face speed, returns to the address
+pose, and reports whether the ball dropped:
 
 ```
 uv run python examples/putt.py --speed 0.5 --video putt.mp4
