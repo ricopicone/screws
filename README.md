@@ -7,41 +7,43 @@ loader, robots that ship ready to use, and a bridge to CoppeliaSim.
 
 ## Install
 
+One or the other:
+
 ```
-uv add screws                 # the mathematics: numpy is the only dependency
-uv add "screws[coppelia]"     # plus the CoppeliaSim ZMQ remote API client
+uv add screws                 # the mathematics only; numpy is the sole dependency
+uv add "screws[coppelia]"     # the same, plus the CoppeliaSim ZMQ remote API client
 ```
 
 ## Four lines
 
 ```python
-import screws as sc
+import screws
 
-ur5 = sc.robots.ur5()                              # M, screw axes, inertias from the textbook's URDF
+ur5 = screws.robots.ur5()                          # M, screw axes, inertias from the textbook's URDF
 T = ur5.fk([0.3, -1.2, 0.8, -0.4, 1.1, 0.2])         # a reachable, non-singular pose
 result = ur5.ik(T, theta0=[0.1, -1.4, 0.1, 0.1, 1.4, 0.1])   # result.theta, result.converged, result.history
 ```
 
 The free functions are the reference implementation and read as the book does:
-`sc.exp6(sc.vec_to_se3(S * theta))` is $e^{[\mathcal{S}]\theta}$, `sc.fk_space(M, S, theta)`
-is the space form of the product of exponentials, and `sc.FKinSpace` is the very same
-function under MR's name.
+`screws.exp6(screws.vec_to_se3(S * theta))` is $e^{[\mathcal{S}]\theta}$,
+`screws.fk_space(M, S, theta)` is the space form of the product of exponentials, and
+`screws.FKinSpace` is the very same function under MR's name.
 
 Screw-axis lists are **6xn, one axis per column**, as MR writes them. Nothing guesses the
 orientation (a 6x6 array is ambiguous for a six-axis arm), so hand entry goes through a
-sequence of 6-vectors: `sc.Robot.from_screw_axes(M, [S1, S2, ...])`.
+sequence of 6-vectors: `screws.Robot.from_screw_axes(M, [S1, S2, ...])`.
 
 ## Check your own code against the library
 
 ```python
 import numpy as np
-import screws as sc
+import screws
 
 def my_exp6(se3mat): ...                          # your implementation
 
 rng = np.random.default_rng(0)
-cases = [sc.vec_to_se3(rng.normal(size=6)) for _ in range(20)]
-sc.testing.check(my_exp6, sc.exp6, cases)          # raises on the first disagreement
+cases = [screws.vec_to_se3(rng.normal(size=6)) for _ in range(20)]
+screws.testing.check(my_exp6, screws.exp6, cases)  # raises on the first disagreement
 ```
 
 ## CoppeliaSim
@@ -56,22 +58,27 @@ with Scene() as scene:                 # connects to localhost:23000 in stepping
     robot = arm.robot()                # a screws.Robot read off the scene at zero
     arm.mode("position")
     log = scene.run(lambda t, theta, dtheta: theta_desired(t), duration=5.0, arm=arm)
-log.plot()
+log.plot()                             # four stacked time plots: theta, dtheta, tau, command
+log.to_csv("run.csv")
 ```
 
 `Scene` owns the connection and the clock (`start`, `step`, `stop`, `time`, `dt`,
-`frame`, `show_frame`). `Arm` reads (`theta`, `dtheta`, `tau`, `tip_frame`) and commands
+`frame`, `show_frame`). `Scene.run` records every step into a `Log` (`t`, `theta`, `dtheta`,
+`tau`, `command`, `T_sb` as arrays); `Log.plot()` draws one time-series axis per joint quantity
+and shows the figure, `Log.to_csv` writes it out. `Arm` reads (`theta`, `dtheta`, `tau`, `tip_frame`) and commands
 in one of three modes (`position`, `velocity`, `torque`), or `teleport`s without physics
 to animate an IK history. `Arm.robot()` derives M and the screw axes from the scene's
 joint frames (omega is the joint's z axis, v = -omega x q). Scene inertias arrive in 0.2.
 
 ## Two UR5s
 
-`sc.robots.ur5()` is built from the URDF the textbook prints in section 4.2: the
-manufacturer's lengths and the printed inertias, the closest published match to the
-simulator's model. `sc.robots.ur5(source="textbook")` is the rounded table of MR Figure
-4.6 with no inertias. They differ in the third decimal of the $v$ entries, and the course
-notes' problems ask why.
+`screws.robots.ur5()` is built from the URDF the textbook prints in section 4.2, whose
+lengths are the manufacturer's to a tenth of a millimetre (89.159, 135.85, 425, 119.7, 392.25,
+93, 94.65 and 82.3 mm) and which carries the link inertias. `screws.robots.ur5(source="textbook")`
+is the rounded table of MR Figure 4.6 ($W_1 = 109$, $W_2 = 82$, $L_1 = 425$, $L_2 = 392$,
+$H_1 = 89$, $H_2 = 95$ mm) with no inertias. Use the first to match a simulator or a real arm;
+use the second to reproduce the book's worked examples digit for digit. The two agree in every
+axis direction and differ by under a millimetre in position.
 
 ## Names
 
@@ -109,7 +116,7 @@ notes' problems ask why.
 | `IKinSpace` | `ik_space` |
 
 Where a screws function's signature matches MR's, the alias **is** that function
-(`sc.FKinSpace is sc.fk_space`). `IKinBody` and `IKinSpace` are thin wrappers that return
+(`screws.FKinSpace is screws.fk_space`). `IKinBody` and `IKinSpace` are thin wrappers that return
 MR's `(thetalist, success)` tuple; the primaries return an `IKResult` with the iteration
 history. No deprecation warnings, ever.
 

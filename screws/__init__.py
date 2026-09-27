@@ -1,7 +1,7 @@
 """screws: screw-theory robotics, after Lynch and Park, *Modern Robotics* (MR).
 
-``import screws as sc`` gives every chapter function flat (``sc.exp6``, ``sc.fk_space``),
-MR's CamelCase names as aliases (``sc.FKinSpace is sc.fk_space``), the ``Robot`` class,
+``import screws`` gives every chapter function flat (``screws.exp6``, ``screws.fk_space``),
+MR's CamelCase names as aliases (``screws.FKinSpace is screws.fk_space``), the ``Robot`` class,
 the ``robots`` that ship, the ``urdf`` loader and the ``testing`` helpers. The CoppeliaSim
 bridge is ``screws.coppelia``, imported only on request.
 """

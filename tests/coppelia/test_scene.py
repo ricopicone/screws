@@ -119,3 +119,22 @@ def test_exit_deregisters_the_stepping_client():
     with Scene(sim=sim):
         assert sim.stepping
     assert not sim.stepping  # otherwise the server waits forever for this client's next step()
+
+
+def test_log_plot_draws_four_axes_and_can_skip_show(monkeypatch):
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    shown = []
+    monkeypatch.setattr(plt, "show", lambda: shown.append(True))
+    with Scene(sim=two_joint_scene()) as scene:
+        arm = scene.arm("/Arm")
+        arm.mode("position")
+        log = scene.run(lambda t, th, dth: [0.1, 0.2], duration=0.1, arm=arm)
+    fig = log.plot()
+    assert len(fig.axes) == 4 and shown == [True]
+    fig2 = log.plot(show=False)
+    assert len(fig2.axes) == 4 and shown == [True]
+    plt.close("all")

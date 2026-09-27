@@ -87,8 +87,10 @@ class Log:
         """Write joint angles only, one row per step, no header: the MR wiki scenes' format."""
         np.savetxt(path, self.theta, delimiter=",")
 
-    def plot(self):
-        """One axis per quantity (theta, dtheta, tau, command). Needs matplotlib."""
+    def plot(self, *, show: bool = True):
+        """Four stacked time-series axes, one line per joint: theta, dtheta, tau and command
+        against simulated time. Shows the window unless show=False; returns the figure either
+        way (for fig.savefig). Needs matplotlib (``screws[plot]``)."""
         import matplotlib.pyplot as plt
 
         fig, axes = plt.subplots(4, 1, sharex=True, figsize=(8, 9))
@@ -102,4 +104,6 @@ class Log:
             ax.grid(True)
         axes[-1].set_xlabel("t (s)")
         fig.tight_layout()
+        if show:
+            plt.show()
         return fig
