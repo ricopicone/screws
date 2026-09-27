@@ -43,6 +43,14 @@ class FakeSim:
     drawing_lines = 1
     shapeintparam_static = 3003
     shapeintparam_respondable = 3004
+    colorcomponent_ambient_diffuse = 0
+    primitiveshape_cuboid = 1
+    primitiveshape_spheroid = 2
+    primitiveshape_cylinder = 3
+    bullet_body_friction = 6003
+    bullet_body_restitution = 6001
+    bullet_body_lineardamping = 6004
+    bullet_body_angulardamping = 6005
     sceneobject_visionsensor = 9
 
     def __init__(self, dt: float = 0.05):
@@ -190,6 +198,10 @@ class FakeSim:
         self.calls.append(("setObjectInt32Param", h, param, value))
         if param == self.jointintparam_dynctrlmode:
             self.ctrl_mode[h] = value
+        elif param == self.shapeintparam_static:
+            self.objects[h].static = bool(value)
+        elif param == self.shapeintparam_respondable:
+            self.objects[h].respondable = bool(value)
 
     def setStepping(self, enable=True):
         self.stepping = enable
@@ -197,8 +209,15 @@ class FakeSim:
     simulation_stopped = 0
     simulation_advancing_running = 17
 
+    stop_lag = 0  # polls after stopSimulation during which the state still reads "running"
+
     def getSimulationState(self):
-        return self.simulation_advancing_running if self.running else self.simulation_stopped
+        if self.running:
+            return self.simulation_advancing_running
+        if self.stop_lag > 0:
+            self.stop_lag -= 1
+            return self.simulation_advancing_running
+        return self.simulation_stopped
 
     def startSimulation(self):
         self.calls.append(("startSimulation",))
@@ -227,6 +246,48 @@ class FakeSim:
 
     def getSimulationTimeStep(self):
         return self.dt
+
+    def createPrimitiveShape(self, kind, sizes, options=0):
+        h = self.add(f"/Shape{len(self.objects)}", "shape", np.eye(4), static=False)
+        self.objects[h].primitive = (kind, list(sizes))
+        self.objects[h].engine = {}
+        self.objects[h].velocity = np.zeros(3)
+        return h
+
+    def setShapeMass(self, h, m):
+        self.objects[h].mass = float(m)
+
+    def setShapeColor(self, h, colorname, component, rgb):
+        self.objects[h].color = list(rgb)
+
+    def setEngineFloatParam(self, param, h, value):
+        self.objects[h].engine[param] = float(value)
+        return 1
+
+    def getEngineFloatParam(self, param, h):
+        return self.objects[h].engine.get(param, 0.5)
+
+    def setObjectParent(self, h, parent, keep_in_place=True):
+        o = self.objects[h]
+        if o.parent in self.objects:
+            self.objects[o.parent].children.remove(h)
+        o.parent = parent
+        if parent in self.objects:
+            self.objects[parent].children.append(h)
+        # T_world_zero stays the object's world frame at zero; keep_in_place is implied
+        return 1
+
+    def getObjectPosition(self, h, rel=-1):
+        return [float(x) for x in self._world_frame(h)[:3, 3]]
+
+    def setObjectPosition(self, h, pos, rel=-1):
+        self.objects[h].T_world_zero[:3, 3] = np.asarray(pos, float)
+
+    def setObjectPose(self, h, pose, rel=-1):
+        self.objects[h].T_world_zero = _sim.pose7_to_transform(pose)
+
+    def getObjectVelocity(self, h):
+        return [float(x) for x in getattr(self.objects[h], "velocity", np.zeros(3))], [0.0, 0.0, 0.0]
 
     def createVisionSensor(self, options, int_params, float_params):
         h = self.add(f"/visionSensor{len(self.objects)}", "visionsensor", np.eye(4))

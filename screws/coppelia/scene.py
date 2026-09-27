@@ -65,19 +65,26 @@ class Scene:
         since in stepping mode it would wait forever for that client's next step()."""
         if self.sim.getSimulationState() != self.sim.simulation_stopped:
             self.stop()
-            for _ in range(200):
-                if self.sim.getSimulationState() == self.sim.simulation_stopped:
-                    break
-                time.sleep(0.05)
         self.sim.startSimulation()
         self.started = True
 
     def step(self) -> None:
+        """Advance one simulation step; active recorders grab a frame first."""
+        for rec in list(self._recorders):
+            rec.tick()
         self.sim.step()
 
     def stop(self) -> None:
+        """Stop the simulation and wait until it has actually stopped.
+
+        stopSimulation is asynchronous; objects created while the simulation is still winding
+        down are deleted when the stop completes, so nothing should be built until it has."""
         self.sim.stopSimulation()
         self.started = False
+        for _ in range(100):
+            if self.sim.getSimulationState() == self.sim.simulation_stopped:
+                return
+            time.sleep(0.02)
 
     @property
     def time(self) -> float:
@@ -217,7 +224,5 @@ class Scene:
                 arm.command(u)
             if log:
                 self.record(arm, u, theta=theta, dtheta=dtheta)
-            for rec in list(self._recorders):
-                rec.tick()
             self.step()
         return self.log

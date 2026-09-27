@@ -138,3 +138,13 @@ def test_log_plot_draws_four_axes_and_can_skip_show(monkeypatch):
     fig2 = log.plot(show=False)
     assert len(fig2.axes) == 4 and shown == [True]
     plt.close("all")
+
+
+def test_stop_waits_until_the_simulation_has_actually_stopped():
+    sim = two_joint_scene()
+    sim.stop_lag = 3  # the simulator reports "running" for three more polls after stopSimulation
+    with Scene(sim=sim) as scene:
+        scene.start()
+        scene.stop()
+        assert sim.getSimulationState() == sim.simulation_stopped
+        assert sim.stop_lag == 0  # stop() polled until the state settled

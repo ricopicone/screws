@@ -99,3 +99,27 @@ def test_records_a_movie_of_twenty_steps(scene, tmp_path):
     assert rec.saved is not None and rec.saved.stat().st_size > 1000
     # the picture is not blank and changes as the arm moves
     assert rec.frames[0].std() > 5 and not np.array_equal(rec.frames[0], rec.frames[-1])
+
+
+def test_putt_moves_the_ball_toward_the_hole(scene):
+    from screws.coppelia import golf
+
+    arm = scene.arm("/UR5")
+    arm.teleport(np.zeros(6))
+    putter = golf.attach_putter(scene, arm)
+    rf = putter.robot(arm.robot())
+    green = golf.build_green(scene, ball_position=(0.55, 0.30), hole_position=(0.9, 0.30))
+    seed = np.array([-1.21, 0.18, 1.4, -0.01, -1.57, 0.36])
+    arm.mode("position")
+    arm.teleport(seed)
+    scene.start()
+    try:
+        res = golf.putt(scene, arm, rf, green, speed=0.5, seed=seed, settle_time=4.0)
+    finally:
+        scene.stop()
+        green.remove()
+        putter.remove()
+    start, end = res.ball_path[0], res.ball_path[-1]
+    assert end[0] - start[0] > 0.15  # rolled toward the hole along +x
+    assert abs(end[1] - start[1]) < 0.05  # and stayed on the line
+    assert res.distance < 0.25

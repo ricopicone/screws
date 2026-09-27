@@ -114,6 +114,20 @@ in one of three modes (`position`, `velocity`, `torque`), or `teleport`s without
 to animate an IK history. `Arm.robot()` derives M and the screw axes from the scene's
 joint frames (omega is the joint's z axis, v = -omega x q).
 
+## An example: putting
+
+`examples/putt.py` builds a green in a running CoppeliaSim (a ball, a cup and a kinematic
+putter on the UR5's flange), addresses the ball, strokes straight through it along the line
+to the hole at a chosen face speed, and reports where the ball stopped:
+
+```
+uv run python examples/putt.py --speed 0.5 --video putt.mp4
+```
+
+The pieces are in `screws.coppelia.golf`: `build_green`, `attach_putter` (whose `.robot()`
+moves `M` from the flange to the putter face), `address_pose`, `stroke_path` and `putt`.
+Vary the speed, the hole position or the ball's friction and see what the physics does.
+
 ## Two UR5s
 
 `screws.robots.ur5()` is built from the URDF the textbook prints in section 4.2, whose
