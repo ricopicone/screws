@@ -35,6 +35,8 @@ class FakeSim:
     sceneobject_shape = 0
     joint_revolute = 10
     joint_prismatic = 11
+    jointmode_kinematic = 0
+    jointmode_dynamic = 5
     jointintparam_dynctrlmode = 2030
     jointdynctrl_free = 0
     jointdynctrl_force = 1
@@ -52,6 +54,7 @@ class FakeSim:
     bullet_body_lineardamping = 6004
     bullet_body_angulardamping = 6005
     sceneobject_visionsensor = 9
+    sceneobject_script = 13
 
     def __init__(self, dt: float = 0.05):
         self.dt = dt
@@ -126,6 +129,13 @@ class FakeSim:
             self.objects[h].kind, self.sceneobject_shape
         )
 
+    def getJointMode(self, h):
+        return getattr(self.objects[h], "joint_mode", self.jointmode_dynamic), 0
+
+    def setJointMode(self, h, mode, options=0):
+        self.objects[h].joint_mode = mode
+        return 1
+
     def getJointType(self, h):
         return self.joint_revolute if self.objects[h].joint_type == "revolute" else self.joint_prismatic
 
@@ -135,7 +145,7 @@ class FakeSim:
         while stack:
             h = stack.pop(0)
             kinds = {self.sceneobject_shape: "shape", self.sceneobject_joint: "joint",
-                     self.sceneobject_dummy: "dummy"}
+                     self.sceneobject_dummy: "dummy", self.sceneobject_script: "script"}
             if (h != base or not (options & 1)) and self.objects[h].kind == kinds.get(obj_type):
                 out.append(h)
             if h == base or not (options & 2):  # bit 2: first children only
@@ -247,11 +257,39 @@ class FakeSim:
     def getSimulationTimeStep(self):
         return self.dt
 
+    floatparam_simulation_time_step = 3
+
+    def getFloatParam(self, param):
+        if param == self.floatparam_simulation_time_step:
+            return self.dt
+        raise KeyError(param)
+
+    def setFloatParam(self, param, value):
+        if param == self.floatparam_simulation_time_step:
+            if self.running:
+                raise RuntimeError("cannot change the time step while the simulation is running")
+            self.dt = float(value)
+            return 1
+        raise KeyError(param)
+
     def createPrimitiveShape(self, kind, sizes, options=0):
         h = self.add(f"/Shape{len(self.objects)}", "shape", np.eye(4), static=False)
         self.objects[h].primitive = (kind, list(sizes))
         self.objects[h].engine = {}
         self.objects[h].velocity = np.zeros(3)
+        return h
+
+    def createTexture(self, path, options=0, plane_sizes=None, scaling_uv=None, xy_g=None, fixed=None, resolution=None):
+        h = self.add(f"/Plane{len(self.objects)}", "shape", np.eye(4), static=True)
+        w, hh = (0.1, 0.1) if plane_sizes is None else (float(plane_sizes[0]), float(plane_sizes[1]))
+        self.objects[h].texture = str(path)
+        self.objects[h].plane = (w, hh)
+        self.objects[h].respondable = False
+        self.objects[h].engine = {}
+        return h, 1000 + h, [64, 64]
+
+    def createForceSensor(self, options, int_params, float_params):
+        h = self.add(f"/forceSensor{len(self.objects)}", "forcesensor", np.eye(4))
         return h
 
     def createMeshShape(self, options, shading_angle, vertices, indices):
@@ -352,6 +390,7 @@ def two_joint_scene() -> FakeSim:
     sim.add("/Arm/cubeB", "shape", se3.trans([0.3, 0, 0.5]), parent=j2,
             mass=3.0, inertia=np.diag([0.02, 0.02, 0.02]), static=False)
     sim.add("/Arm/tip", "dummy", se3.trans([0.3, 0, 0.5]), parent=l2)
+    sim.add("/Arm/Script", "script", np.eye(4), parent=base)  # a stock model's demo script
     return sim
 
 

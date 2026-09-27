@@ -148,3 +148,25 @@ def test_stop_waits_until_the_simulation_has_actually_stopped():
         scene.stop()
         assert sim.getSimulationState() == sim.simulation_stopped
         assert sim.stop_lag == 0  # stop() polled until the state settled
+
+
+def test_tracked_objects_are_removed_on_exit_even_after_an_exception():
+    sim = two_joint_scene()
+    with pytest.raises(ZeroDivisionError), Scene(sim=sim) as scene:
+        h = sim.createPrimitiveShape(sim.primitiveshape_spheroid, [0.04] * 3, 0)
+        scene.track(h)
+        assert h in sim.objects
+        raise ZeroDivisionError("controller crashed")
+    assert h not in sim.objects
+
+
+def test_set_time_step_changes_dt_and_is_restored_on_exit():
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        assert scene.dt == 0.05
+        scene.set_time_step(0.01)
+        assert scene.dt == 0.01
+        with pytest.raises(RuntimeError, match="running"):
+            scene.start()
+            scene.set_time_step(0.02)
+    assert sim.getSimulationTimeStep() == 0.05  # put back when the Scene exits

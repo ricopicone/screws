@@ -104,17 +104,18 @@ def test_records_a_movie_of_twenty_steps(scene, tmp_path):
 def test_putt_moves_the_ball_toward_the_hole(scene):
     from screws.coppelia import golf
 
+    scene.set_time_step(0.01)  # a kinematic face must move a few mm per step to strike cleanly
     arm = scene.arm("/UR5")
     arm.teleport(np.zeros(6))
     putter = golf.attach_putter(scene, arm)
     rf = putter.robot(arm.robot())
-    green = golf.build_green(scene, ball_position=(0.55, 0.30), hole_position=(0.9, 0.30))
+    green = golf.build_green(scene, ball_position=(0.55, 0.30), hole_position=(0.85, 0.30))
     seed = np.array([-1.21, 0.18, 1.4, -0.01, -1.57, 0.36])
-    arm.mode("position")
+    arm.mode("kinematic")
     arm.teleport(seed)
     scene.start()
     try:
-        res = golf.putt(scene, arm, rf, green, speed=0.5, seed=seed, settle_time=4.0)
+        res = golf.putt(scene, arm, rf, green, speed=0.3, seed=seed, settle_time=6.0)
     finally:
         scene.stop()
         green.remove()

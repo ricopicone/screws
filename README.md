@@ -122,7 +122,7 @@ straight through it along the line to the cup at a chosen face speed, returns to
 pose, and reports whether the ball dropped:
 
 ```
-uv run python examples/putt.py --speed 0.5 --video putt.mp4
+uv run python examples/putt.py --speed 0.3 --video putt.mp4
 ```
 
 The pieces are in `screws.coppelia.golf`: `build_green`, `attach_putter` (whose `.robot()`

@@ -33,6 +33,9 @@ class Scene:
         self._triads: dict[str, list[int]] = {}
         self._recorders: list[Recorder] = []
         self._created_sensors: list[int] = []
+        self._tracked: list[int] = []
+        self._time_step_to_restore: float | None = None
+        self._arms: list[Arm] = []
 
     def __enter__(self):
         return self
@@ -40,12 +43,24 @@ class Scene:
     def __exit__(self, exc_type, exc, tb) -> None:
         if self.started:
             self.stop()
-        if self._created_sensors:
+        for arm in self._arms:
             try:
-                self.sim.removeObjects(list(self._created_sensors))
+                arm.restore_dynamics()
             except Exception:  # noqa: BLE001, S110 - the simulator may already be gone
                 pass
-            self._created_sensors.clear()
+        if self._time_step_to_restore is not None:
+            try:
+                self.sim.setFloatParam(self.sim.floatparam_simulation_time_step, self._time_step_to_restore)
+            except Exception:  # noqa: BLE001, S110 - the simulator may already be gone
+                pass
+            self._time_step_to_restore = None
+        for handles in (self._created_sensors, self._tracked):
+            if handles:
+                try:
+                    self.sim.removeObjects(list(handles))
+                except Exception:  # noqa: BLE001, S110 - the simulator may already be gone
+                    pass
+                handles.clear()
         # De-register as a stepping client: the server advances only when every registered
         # stepping client has called step(), so a client that leaves silently freezes the clock
         # for everyone who comes after it.
@@ -85,6 +100,15 @@ class Scene:
             if self.sim.getSimulationState() == self.sim.simulation_stopped:
                 return
             time.sleep(0.02)
+
+    def set_time_step(self, dt: float) -> None:
+        """Set the simulation (control) time step in seconds, while stopped; the physics engine
+        keeps its own smaller step. The previous value is restored when the Scene exits."""
+        if self.started or self.sim.getSimulationState() != self.sim.simulation_stopped:
+            raise RuntimeError("set the time step while the simulation is stopped, not running")
+        if self._time_step_to_restore is None:
+            self._time_step_to_restore = float(self.sim.getFloatParam(self.sim.floatparam_simulation_time_step))
+        self.sim.setFloatParam(self.sim.floatparam_simulation_time_step, float(dt))
 
     @property
     def time(self) -> float:
@@ -135,6 +159,15 @@ class Scene:
     def _remove_triad(self, name: str) -> None:
         for h in self._triads.pop(name, []):
             self.sim.removeDrawingObject(h)
+
+    def track(self, *handles: int) -> None:
+        """Remove these objects when the Scene exits, however the run ends."""
+        self._tracked.extend(int(h) for h in handles)
+
+    def untrack(self, *handles: int) -> None:
+        for h in handles:
+            if int(h) in self._tracked:
+                self._tracked.remove(int(h))
 
     def camera(
         self,
@@ -194,9 +227,12 @@ class Scene:
         self._recorders.append(rec)  # records inside Scene.run with or without a with-block
         return rec
 
-    def arm(self, path: str, joints=None) -> Arm:
-        """The Arm under path; ``joints`` names a subset (aliases or paths) when a tool adds its own."""
-        return Arm(self, path, joints)
+    def arm(self, path: str, joints=None, *, disable_scripts: bool = True) -> Arm:
+        """The Arm under path; ``joints`` names a subset (aliases or paths) when a tool adds its
+        own; the model's embedded demo scripts are removed unless ``disable_scripts=False``."""
+        arm = Arm(self, path, joints, disable_scripts=disable_scripts)
+        self._arms.append(arm)
+        return arm
 
     # ----- running ----------------------------------------------------------------------
 

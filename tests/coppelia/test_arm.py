@@ -195,3 +195,45 @@ def test_link_inertias_relative_to_base_keep_the_chain_consistent():
         # frame {2} takes joint 2's orientation (local z = world y), so its inertia is re-expressed
         assert np.allclose(np.sort(np.diag(r.link_inertias[1])[:3]), [0.01, 0.02, 0.03])
         assert np.allclose(np.diag(r.link_inertias[1])[:3], [0.01, 0.03, 0.02])
+
+
+def test_kinematic_mode_makes_the_arm_a_static_tree_driven_by_positions():
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        link_shapes = [h for h, o in sim.objects.items() if o.kind == "shape" and o.alias.startswith(("link", "cube"))]
+        assert any(not sim.objects[h].static for h in link_shapes)
+        arm.mode("kinematic")
+        assert all(sim.getJointMode(h)[0] == sim.jointmode_kinematic for h in arm.handles)
+        assert all(sim.objects[h].static for h in link_shapes)
+        arm.command([0.3, -0.2])  # a kinematic command is the position itself, no controller
+        assert np.allclose(arm.theta(), [0.3, -0.2])
+        arm.mode("position")  # back to dynamics: joint mode and static flags restored
+        assert all(sim.getJointMode(h)[0] == sim.jointmode_dynamic for h in arm.handles)
+        assert any(not sim.objects[h].static for h in link_shapes)
+        assert all(sim.ctrl_mode[h] == sim.jointdynctrl_position for h in arm.handles)
+
+
+def test_arm_removes_the_models_demo_scripts_unless_told_not_to():
+    sim = two_joint_scene()
+    script = sim.getObject("/Arm/Script")
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        assert script not in sim.objects
+        assert arm.removed_scripts == ("Script",)
+    sim = two_joint_scene()
+    script = sim.getObject("/Arm/Script")
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm", disable_scripts=False)
+        assert script in sim.objects and arm.removed_scripts == ()
+
+
+def test_scene_exit_restores_an_arm_left_in_kinematic_mode():
+    sim = two_joint_scene()
+    link_shapes = [h for h, o in sim.objects.items() if o.kind == "shape" and o.alias.startswith(("link", "cube"))]
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        arm.mode("kinematic")
+        assert all(sim.objects[h].static for h in link_shapes)
+    assert all(sim.getJointMode(h)[0] == sim.jointmode_dynamic for h in arm.handles)
+    assert any(not sim.objects[h].static for h in link_shapes)

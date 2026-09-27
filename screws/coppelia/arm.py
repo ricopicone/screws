@@ -10,23 +10,28 @@ from ._sim import inertia9_to_matrix, matrix12_to_transform
 
 __all__ = ["Arm"]
 
-_MODES = ("position", "velocity", "torque")
+_MODES = ("position", "velocity", "torque", "kinematic")
 
 
 class Arm:
     """A serial chain in the scene: its joints ordered base to tip, and its tip object.
 
     Joints are every joint under ``path``, ordered by depth, or the ones named in ``joints``
-    (aliases or paths, in order) when a gripper or other tool adds joints of its own. The tip is the first dummy
+    (aliases or paths, in order) when a gripper or other tool adds joints of its own. The
+    model's embedded scripts are removed (``disable_scripts=False`` keeps them); ``removed_scripts``
+    names what went. The tip is the first dummy
     under ``path`` whose alias is "tip" or "ee" (or contains "tip"), else the last joint.
     """
 
-    def __init__(self, scene, path: str, joints=None):
+    def __init__(self, scene, path: str, joints=None, *, disable_scripts: bool = True):
         self.scene = scene
         self.sim = scene.sim
         self.path = path
         self.base = scene._handle(path)
         self.alias = self.sim.getObjectAlias(self.base, -1)
+        self.removed_scripts: tuple[str, ...] = ()
+        if disable_scripts:
+            self.removed_scripts = self._remove_scripts()
         found = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_joint, 0))
         found.sort(key=self._depth)
         if joints is None:
@@ -51,6 +56,21 @@ class Arm:
         self.joint_names: tuple[str, ...] = tuple(self.sim.getObjectAlias(h, -1) for h in joints)
         self.tip, self.tip_alias = self._find_tip()
         self._mode: str | None = None
+        self._saved_static: dict[int, int] | None = None
+
+    def _remove_scripts(self) -> tuple[str, ...]:
+        """Remove the model's embedded scripts. Stock models ship with demo scripts (the UR5's
+        moves the joints through three preset poses every run) that fight a remote controller:
+        targets drift when they stop being re-sent, and each run gets jerkier."""
+        kind = getattr(self.sim, "sceneobject_script", None)
+        if kind is None:
+            return ()
+        scripts = list(self.sim.getObjectsInTree(self.base, kind, 0))
+        if not scripts:
+            return ()
+        names = tuple(self.sim.getObjectAlias(h, -1) for h in scripts)
+        self.sim.removeObjects(scripts)
+        return names
 
     def _depth(self, h: int) -> int:
         d = 0
@@ -128,9 +148,31 @@ class Arm:
     # ----- commanding -------------------------------------------------------------------
 
     def mode(self, kind: str) -> None:
-        """Set every joint's dynamic control mode: "position", "velocity" or "torque"."""
+        """Set how the arm is driven.
+
+        "position", "velocity" and "torque" are the dynamic control modes: the physics engine
+        moves the joints toward the commanded targets with the model's motors, so a command
+        is tracked with some lag. "kinematic" switches the joints to kinematic mode and makes
+        the arm's shapes static: a command is the position itself, followed exactly, and the
+        arm becomes a rigid mover that pushes dynamic objects (the right setting for a tool
+        that must strike something repeatably). Leaving kinematic mode restores the shapes'
+        flags and the dynamic joint mode.
+        """
         if kind not in _MODES:
             raise ValueError(f"mode must be one of {_MODES}; got {kind!r}")
+        if kind == "kinematic":
+            if self._saved_static is None:
+                shapes = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_shape, 0))
+                self._saved_static = {
+                    h: int(self.sim.getObjectInt32Param(h, self.sim.shapeintparam_static)) for h in shapes
+                }
+                for h in shapes:
+                    self.sim.setObjectInt32Param(h, self.sim.shapeintparam_static, 1)
+            for h in self.handles:
+                self.sim.setJointMode(h, self.sim.jointmode_kinematic, 0)
+            self._mode = kind
+            return
+        self.restore_dynamics()
         value = {
             "position": self.sim.jointdynctrl_position,
             "velocity": self.sim.jointdynctrl_velocity,
@@ -139,6 +181,19 @@ class Arm:
         for h in self.handles:
             self.sim.setObjectInt32Param(h, self.sim.jointintparam_dynctrlmode, value)
         self._mode = kind
+
+    def restore_dynamics(self) -> None:
+        """Leave kinematic mode: put the shapes' static flags and the joints' dynamic mode back.
+        Called by mode(...) and by the Scene on exit, so a run never leaves the model frozen."""
+        if self._saved_static is None:
+            return
+        for h, flag in self._saved_static.items():
+            self.sim.setObjectInt32Param(h, self.sim.shapeintparam_static, flag)
+        self._saved_static = None
+        for h in self.handles:
+            self.sim.setJointMode(h, self.sim.jointmode_dynamic, 0)
+        if self._mode == "kinematic":
+            self._mode = None
 
     def _require(self, kind: str) -> None:
         if self._mode != kind:
@@ -154,6 +209,7 @@ class Arm:
             "position": self.command_positions,
             "velocity": self.command_velocities,
             "torque": self.command_torques,
+            "kinematic": self.teleport,
         }
         dispatch[self._mode](u)
 
