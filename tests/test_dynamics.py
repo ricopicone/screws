@@ -75,7 +75,7 @@ def test_euler_step_and_trajectories():
     )
     assert tau_mat.shape == (N, 3)
     assert np.allclose(tau_mat[0], dyn.gravity_forces(THETA, G, LINK_FRAMES, LINK_INERTIAS, S))
-    th_mat, dth_mat = dyn.forward_dynamics_trajectory(
+    th_mat, _dth_mat = dyn.forward_dynamics_trajectory(
         THETA, np.zeros(3), tau_mat, G, np.zeros((N, 6)), LINK_FRAMES, LINK_INERTIAS, S, 0.01, 4
     )
     assert th_mat.shape == (N, 3) and np.allclose(th_mat, THETA, atol=1e-6)  # gravity balanced

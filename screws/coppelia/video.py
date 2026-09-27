@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -56,6 +57,10 @@ class Recorder:
         self._steps += 1
 
     @property
+    def frame_count(self) -> int:
+        return len(self._frames)
+
+    @property
     def frames(self) -> np.ndarray:
         return np.array(self._frames) if self._frames else np.zeros((0, 0, 0, 3), dtype=np.uint8)
 
@@ -79,17 +84,26 @@ class Recorder:
             imageio.mimwrite(path, frames, duration=1000.0 / self.fps, loop=0)
         else:
             imageio.mimwrite(path, frames, fps=self.fps, macro_block_size=1)
+        if not path.exists() or path.stat().st_size == 0:
+            raise OSError(f"the encoder wrote nothing to {path} (is ffmpeg available? are the frames even-sized?)")
         self.saved = path
         return path
 
     # ----- context ----------------------------------------------------------------------
 
-    def __enter__(self) -> Recorder:
-        self.scene._recorders.append(self)
+    def __enter__(self):
+        if self not in self.scene._recorders:
+            self.scene._recorders.append(self)
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
         if self in self.scene._recorders:
             self.scene._recorders.remove(self)
-        if self._frames:
+        if not self._frames:
+            return
+        try:
             self.save()
+        except Exception as save_error:
+            if exc_type is None:
+                raise
+            warnings.warn(f"the movie was not saved ({save_error}); the run's own error follows", stacklevel=2)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import time
 from collections.abc import Callable
 
@@ -143,6 +144,8 @@ class Scene:
         if path is not None:
             return self._handle(path)
         w, h = int(resolution[0]), int(resolution[1])
+        if w % 2 or h % 2:
+            raise ValueError(f"resolution must have even width and height for video encoding; got {w}x{h}")
         handle = int(
             self.sim.createVisionSensor(
                 1 + 2,  # explicit handling, perspective projection
@@ -172,8 +175,16 @@ class Scene:
         (position, look_at, resolution, fov_deg). Frames are grabbed every ``every`` steps
         and the movie plays at simulated time. Needs screws[video] to save.
         """
+        if camera is not None and camera_kwargs:
+            raise TypeError(
+                f"camera kwargs {sorted(camera_kwargs)} only apply when a camera is created; "
+                "drop them or drop camera="
+            )
+        if importlib.util.find_spec("imageio") is None:
+            raise ImportError('saving a movie needs imageio: install "screws[video]"')
         rec = Recorder(self, path, camera=-1, every=every)  # validates the extension first
         rec.camera = self.camera(**camera_kwargs) if camera is None else self._handle(camera)
+        self._recorders.append(rec)  # records inside Scene.run with or without a with-block
         return rec
 
     def arm(self, path: str, joints=None) -> Arm:

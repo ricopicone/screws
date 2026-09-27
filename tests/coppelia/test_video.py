@@ -1,3 +1,5 @@
+import warnings
+
 import numpy as np
 import pytest
 
@@ -64,3 +66,50 @@ def test_every_and_manual_capture(tmp_path):
 def test_unknown_extension_raises_before_the_run(tmp_path):
     with Scene(sim=two_joint_scene()) as scene, pytest.raises(ValueError, match="avi"):
         scene.record_video(tmp_path / "run.avi")
+
+
+def test_odd_resolution_is_rejected_and_save_checks_the_file(tmp_path):
+    with Scene(sim=two_joint_scene()) as scene:
+        with pytest.raises(ValueError, match="even"):
+            scene.camera(resolution=(321, 241))
+        with pytest.raises(ValueError, match="even"):
+            scene.record_video(tmp_path / "x.mp4", resolution=(33, 24))
+
+
+def test_recorder_without_with_still_records_during_run(tmp_path):
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        arm.mode("position")
+        rec = scene.record_video(tmp_path / "plain.gif", resolution=(32, 24))
+        scene.run(lambda t, th, dth: th, duration=0.15, arm=arm)
+        assert rec.frames.shape[0] == 3
+        out = rec.save()
+        assert out.exists() and out.stat().st_size > 0 and rec.frame_count == 3
+
+
+def test_camera_kwargs_with_an_explicit_camera_raise():
+    sim = two_joint_scene()
+    cam = sim.add("/Arm/cam", "visionsensor", np.eye(4))
+    sim.objects[cam].resolution = (32, 24)
+    with Scene(sim=sim) as scene, pytest.raises(TypeError, match="camera"):
+        scene.record_video("x.mp4", camera="/Arm/cam", resolution=(32, 24))
+
+
+def test_save_failure_does_not_mask_the_controllers_exception(tmp_path, monkeypatch):
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        arm = scene.arm("/Arm")
+        arm.mode("position")
+        rec = scene.record_video(tmp_path / "boom.gif", resolution=(32, 24))
+
+        def broken_save(*a, **k):
+            raise OSError("disk full")
+
+        monkeypatch.setattr(rec, "save", broken_save)
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            with pytest.raises(ZeroDivisionError), rec:
+                scene.run(lambda t, th, dth: th, duration=0.1, arm=arm)
+                raise ZeroDivisionError("controller crashed")
+        assert any("not saved" in str(w.message) for w in caught)

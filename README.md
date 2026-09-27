@@ -112,7 +112,7 @@ difference explained. `relative_to="base"` makes {s} the model's base frame.
 and shows the figure, `Log.to_csv` writes it out. `Arm` reads (`theta`, `dtheta`, `tau`, `tip_frame`) and commands
 in one of three modes (`position`, `velocity`, `torque`), or `teleport`s without physics
 to animate an IK history. `Arm.robot()` derives M and the screw axes from the scene's
-joint frames (omega is the joint's z axis, v = -omega x q). Scene inertias arrive in 0.2.
+joint frames (omega is the joint's z axis, v = -omega x q).
 
 ## Two UR5s
 

@@ -16,6 +16,7 @@ from .kinematics import IKResult
 from .robot import MissingInertias, Robot
 from .se3 import *
 from .so3 import *
+from .trajectory import *
 
 __all__ = (
     [
