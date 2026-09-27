@@ -72,3 +72,37 @@ def test_manipulability_isotropic_is_one():
     assert np.isclose(kin.manipulability(J2)["linear"][0], 2.0)
     assert np.isclose(kin.manipulability(J2)["linear"][1], 4.0)
     assert np.isclose(kin.manipulability(J2)["linear"][2], 2.0)
+
+
+def test_ik_never_reports_a_nan_answer_as_converged():
+    from screws import robots
+
+    ur5 = robots.ur5()
+    T = ur5.fk(np.zeros(6)) @ se3.rp_to_transform(
+        __import__("screws").so3.rot(np.array([1, 1, 0]) / np.sqrt(2), np.pi), [0, 0, 0]
+    )
+    r = ur5.ik(T, np.zeros(6))
+    assert np.all(np.isfinite(r.theta))
+    if r.converged:
+        assert np.allclose(ur5.fk(r.theta), T, atol=1e-3)
+
+
+def test_list_of_axes_is_rejected_by_free_functions():
+    import pytest
+
+    axes = [list(S[:, i]) for i in range(3)] + [[0, 0, 1, 0, 0, 0]] * 3  # six 6-vectors
+    with pytest.raises(TypeError, match="sequence"):
+        kin.fk_space(np.eye(4), axes, np.zeros(6))
+    with pytest.raises(TypeError, match="sequence"):
+        kin.jacobian_space(axes, np.zeros(6))
+
+
+def test_theta_length_must_match_joint_count():
+    import pytest
+
+    with pytest.raises(ValueError, match="3 joints"):
+        kin.fk_space(M, S, [0.1, 0.2])
+    with pytest.raises(ValueError, match="3 joints"):
+        kin.jacobian_body(B, [0.1, 0.2, 0.3, 0.4])
+    with pytest.raises(ValueError, match="3 joints"):
+        kin.ik_body(M, B, M, [0.0, 0.0])

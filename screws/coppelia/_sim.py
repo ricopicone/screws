@@ -39,18 +39,33 @@ def connect(host: str = "localhost", port: int = 23000, *, timeout_s: float = 5.
 
     Raises SimulatorNotRunning, with the sentence a student needs, if nothing answers.
     """
+    socket = None
     try:
         client = _new_client(host, port)
-        client.timeout = timeout_s
+        socket = getattr(client, "socket", None)
+        # The client's own `timeout` is a server-side setting sent with the first request;
+        # its recv() blocks forever. Put a real receive timeout on the socket for the probe.
+        if socket is not None:
+            socket.setsockopt(_zmq().RCVTIMEO, int(timeout_s * 1000))
+            socket.setsockopt(_zmq().LINGER, 0)
         sim = client.require("sim")
         sim.getSimulationTime()
     except Exception as exc:  # zmq.Again, ConnectionRefusedError, ...: all mean "not running"
+        if socket is not None:
+            socket.close()
         raise SimulatorNotRunning(
             f"No CoppeliaSim answered at {host}:{port} ({type(exc).__name__}). {STUDENT_SENTENCE}"
         ) from exc
-    client.timeout = 10 * 60
+    if socket is not None:
+        socket.setsockopt(_zmq().RCVTIMEO, -1)
     sim._screws_client = client  # keep the client alive as long as sim is
     return sim
+
+
+def _zmq():
+    import zmq
+
+    return zmq
 
 
 def matrix12_to_transform(m) -> np.ndarray:

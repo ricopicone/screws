@@ -97,10 +97,11 @@ def log3(R) -> np.ndarray:
     MR 3.2.3.3, algorithm after eq. 3.53; notes 3.6.
     """
     R = np.asarray(R, dtype=float)
-    acos_input = (np.trace(R) - 1.0) / 2.0
-    if acos_input >= 1.0:
+    acos_input = float(np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0))
+    if acos_input >= 1.0 - 1e-12:
         return np.zeros((3, 3))
-    if acos_input <= -1.0:
+    if acos_input <= -1.0 + 1e-10:
+        # theta = pi (to rounding): the general formula divides by sin(theta) = 0
         if not near_zero(1.0 + R[2, 2]):
             omega = (1.0 / np.sqrt(2.0 * (1.0 + R[2, 2]))) * np.array(
                 [R[0, 2], R[1, 2], 1.0 + R[2, 2]]

@@ -54,6 +54,8 @@ class FakeSim:
         self.ctrl_mode: dict[int, int] = {}
         self.drawings: list = []
         self.calls: list[tuple] = []
+        self.alias_options: list[int] = []
+        self.force_errors = False
 
     # --- scene construction (test helper) ---
     def add(self, path, kind, T, parent=-1, joint_type="revolute", interval=None) -> int:
@@ -78,11 +80,13 @@ class FakeSim:
         return out[::-1]
 
     def _world_frame(self, h):
-        # zero-position frame moved by every ancestor joint's motion about its own z axis
+        # zero-position frame moved by every ancestor joint's motion about (revolute) or
+        # along (prismatic) its own local z axis, outermost ancestor applied last
         T = self.objects[h].T_world_zero
-        for j in self._ancestors_joints(h):
+        for j in self._ancestors_joints(h)[::-1]:
             Fj = self.objects[j].T_world_zero
-            motion = se3.exp6(se3.vec_to_se3(np.r_[0, 0, 1, 0, 0, 0] * self.q[j]))
+            local = np.r_[0, 0, 1, 0, 0, 0] if self.objects[j].joint_type == "revolute" else np.r_[0, 0, 0, 0, 0, 1]
+            motion = se3.exp6(se3.vec_to_se3(local * self.q[j]))
             T = Fj @ motion @ se3.transform_inv(Fj) @ T
         return T
 
@@ -92,7 +96,8 @@ class FakeSim:
             raise RuntimeError(f"Object does not exist. (in function 'sim.getObject') {path}")
         return self.by_path[path]
 
-    def getObjectAlias(self, h, options=0):
+    def getObjectAlias(self, h, options=-1):
+        self.alias_options.append(options)
         return self.objects[h].alias
 
     def getObjectParent(self, h):
@@ -115,7 +120,8 @@ class FakeSim:
                      self.sceneobject_dummy: "dummy"}
             if (h != base or not (options & 1)) and self.objects[h].kind == kinds.get(obj_type):
                 out.append(h)
-            stack.extend(self.objects[h].children)
+            if h == base or not (options & 2):  # bit 2: first children only
+                stack.extend(self.objects[h].children)
         return out
 
     def getObjectMatrix(self, h, rel=-1):
@@ -135,6 +141,8 @@ class FakeSim:
         return self.dq[h]
 
     def getJointForce(self, h):
+        if self.force_errors:
+            raise RuntimeError("joint is not dynamically enabled")
         return self.force[h]
 
     def getJointInterval(self, h):
@@ -177,7 +185,7 @@ class FakeSim:
                 self.dq[h] = self.target_dq[h]
                 self.q[h] += self.dq[h] * self.dt
             elif mode == self.jointdynctrl_force and h in self.target_force:
-                self.force[h] = self.target_force[h] * np.sign(self.target_dq.get(h, 1.0))
+                self.force[h] = self.target_force[h]  # signed, as CoppeliaSim 4.3+ applies it
         self.time += self.dt
 
     def getSimulationTime(self):
@@ -204,4 +212,27 @@ def two_joint_scene() -> FakeSim:
     j2 = sim.add("/Arm/j2", "joint", se3.trans([0, 0, 0.5]), parent=l1, interval=(-2.0, 2.0))
     l2 = sim.add("/Arm/link2", "shape", se3.trans([0.15, 0, 0.5]), parent=j2)
     sim.add("/Arm/tip", "dummy", se3.trans([0.3, 0, 0.5]), parent=l2)
+    return sim
+
+
+def three_joint_scene(with_tip: bool = True) -> FakeSim:
+    """/Rig, based at (1, 0, 0): j1 revolute about world z through the base; j2 revolute about
+    world y through (1, 0, 0.5) (its local z is world y, so its frame is Rot(x, -90deg));
+    j3 prismatic along world x at (1, 0, 0.5) (local z is world x, frame Rot(y, 90deg)); a
+    'slider' link and, optionally, a tip dummy at (1.4, 0, 0.5)."""
+    from screws import so3
+
+    sim = FakeSim()
+    base = sim.add("/Rig", "shape", se3.trans([1, 0, 0]))
+    j1 = sim.add("/Rig/j1", "joint", se3.trans([1, 0, 0]), parent=base, interval=(-3.0, 3.0))
+    l1 = sim.add("/Rig/post", "shape", se3.trans([1, 0, 0.25]), parent=j1)
+    R2 = so3.rot([1, 0, 0], -np.pi / 2)  # local z -> world y
+    j2 = sim.add("/Rig/j2", "joint", se3.rp_to_transform(R2, [1, 0, 0.5]), parent=l1, interval=(-2.0, 2.0))
+    l2 = sim.add("/Rig/elbow", "shape", se3.trans([1, 0, 0.5]), parent=j2)
+    R3 = so3.rot([0, 1, 0], np.pi / 2)  # local z -> world x
+    j3 = sim.add("/Rig/j3", "joint", se3.rp_to_transform(R3, [1, 0, 0.5]), parent=l2,
+                 joint_type="prismatic", interval=(-0.3, 0.3))
+    l3 = sim.add("/Rig/slider", "shape", se3.trans([1.4, 0, 0.5]), parent=j3)
+    if with_tip:
+        sim.add("/Rig/tip", "dummy", se3.trans([1.4, 0, 0.5]), parent=l3)
     return sim

@@ -86,3 +86,11 @@ def test_project_distance_is_se3():
     assert se3.is_se3(T_MR) and not se3.is_se3(np.eye(4) * 1.1)
     d = se3.distance_se3([[1, 0, 0, 1.2], [0, 0.1, -0.95, 1.5], [0, 1, 0.1, -0.9], [0, 0, 0.1, 0.98]])
     assert np.isclose(d, 0.134931, atol=1e-5)
+
+
+def test_log6_half_turn_is_finite_and_roundtrips():
+    for axis in ([1, 1, 1], [1, 1, 0]):
+        T = se3.rp_to_transform(so3.rot(so3.normalize(axis), np.pi), [0.2, -0.1, 0.4])
+        L = se3.log6(T)
+        assert np.all(np.isfinite(L))
+        assert np.allclose(se3.exp6(L), T, atol=1e-7)

@@ -24,11 +24,11 @@ class Arm:
         self.sim = scene.sim
         self.path = path
         self.base = scene._handle(path)
-        self.alias = self.sim.getObjectAlias(self.base, 0)
+        self.alias = self.sim.getObjectAlias(self.base, -1)
         joints = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_joint, 0))
         joints.sort(key=self._depth)
         self.handles: tuple[int, ...] = tuple(joints)
-        self.joint_names: tuple[str, ...] = tuple(self.sim.getObjectAlias(h, 0) for h in joints)
+        self.joint_names: tuple[str, ...] = tuple(self.sim.getObjectAlias(h, -1) for h in joints)
         self.tip, self.tip_alias = self._find_tip()
         self._mode: str | None = None
 
@@ -41,16 +41,21 @@ class Arm:
 
     def _find_tip(self) -> tuple[int, str]:
         dummies = list(self.sim.getObjectsInTree(self.base, self.sim.sceneobject_dummy, 0))
-        named = {self.sim.getObjectAlias(h, 0): h for h in dummies}
-        for want in ("tip", "ee"):
+        named = {self.sim.getObjectAlias(h, -1): h for h in dummies}
+        for want in ("tip", "ee", "connection"):
             if want in named:
                 return named[want], want
         for alias, h in named.items():
-            if "tip" in alias.lower():
+            if any(key in alias.lower() for key in ("tip", "connection")):
                 return h, alias
         if not self.handles:
             raise LookupError(f"{self.path} has no joints and no tip dummy")
-        return self.handles[-1], self.joint_names[-1]
+        # Fall back to the last joint's first non-joint child (the last link), else the joint.
+        last = self.handles[-1]
+        for kind in (self.sim.sceneobject_shape, self.sim.sceneobject_dummy):
+            for h in self.sim.getObjectsInTree(last, kind, 1 + 2):  # exclude base, first children only
+                return h, self.sim.getObjectAlias(h, -1)
+        return last, self.joint_names[-1]
 
     @property
     def n(self) -> int:
@@ -67,8 +72,14 @@ class Arm:
         return np.array([self.sim.getJointVelocity(h) for h in self.handles], dtype=float)
 
     def tau(self) -> np.ndarray:
-        """Measured joint forces or torques."""
-        return np.array([self.sim.getJointForce(h) for h in self.handles], dtype=float)
+        """Measured joint forces or torques; NaN for a joint that reports none (not dynamic)."""
+        out = []
+        for h in self.handles:
+            try:
+                out.append(float(self.sim.getJointForce(h)))
+            except Exception:
+                out.append(float("nan"))
+        return np.array(out, dtype=float)
 
     def tip_frame(self) -> np.ndarray:
         """The tip's 4x4 configuration in the world frame."""
@@ -126,26 +137,32 @@ class Arm:
         }
         dispatch[self._mode](u)
 
+    def _vector(self, u) -> np.ndarray:
+        u = np.asarray(u, dtype=float).reshape(-1)
+        if u.shape[0] != self.n:
+            raise ValueError(f"got {u.shape[0]} values for {self.n} joints")
+        return u
+
     def command_positions(self, theta) -> None:
         self._require("position")
-        for h, v in zip(self.handles, np.asarray(theta, dtype=float)):
+        for h, v in zip(self.handles, self._vector(theta)):
             self.sim.setJointTargetPosition(h, float(v))
 
     def command_velocities(self, dtheta) -> None:
         self._require("velocity")
-        for h, v in zip(self.handles, np.asarray(dtheta, dtype=float)):
+        for h, v in zip(self.handles, self._vector(dtheta)):
             self.sim.setJointTargetVelocity(h, float(v))
 
     def command_torques(self, tau) -> None:
-        """Force mode: target force |tau| with a large target velocity in the sign of tau."""
+        """Force mode: the signed joint force or torque is applied directly
+        (sim.setJointTargetForce with signedValue, CoppeliaSim 4.3+)."""
         self._require("torque")
-        for h, v in zip(self.handles, np.asarray(tau, dtype=float)):
-            self.sim.setJointTargetForce(h, float(abs(v)))
-            self.sim.setJointTargetVelocity(h, float(np.sign(v) if v != 0 else 1.0) * 1e3)
+        for h, v in zip(self.handles, self._vector(tau)):
+            self.sim.setJointTargetForce(h, float(v), True)
 
     def teleport(self, theta) -> None:
         """Set joint positions directly, without physics: for animating IK iterates."""
-        for h, v in zip(self.handles, np.asarray(theta, dtype=float)):
+        for h, v in zip(self.handles, self._vector(theta)):
             self.sim.setJointPosition(h, float(v))
 
     # ----- the robot off the scene ------------------------------------------------------

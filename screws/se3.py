@@ -159,7 +159,7 @@ def log6(T) -> np.ndarray:
     if np.array_equal(W, np.zeros((3, 3))):
         out[:3, 3] = p
         return out
-    theta = np.arccos((np.trace(R) - 1.0) / 2.0)
+    theta = float(np.linalg.norm(so3_to_vec(W)))
     Ginv = (
         np.eye(3)
         - W / 2.0

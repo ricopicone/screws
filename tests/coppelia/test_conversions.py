@@ -51,3 +51,18 @@ def test_connect_returns_sim_from_client(monkeypatch):
     monkeypatch.setattr(_sim, "_new_client", lambda host, port: Client())
     sim = _sim.connect()
     assert sim.getSimulationTime() == 0.0
+
+
+def test_connect_to_a_closed_port_raises_promptly():
+    import socket
+    import time
+
+    # find a port nobody listens on
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    t0 = time.monotonic()
+    with pytest.raises(_sim.SimulatorNotRunning, match="Start CoppeliaSim"):
+        _sim.connect("127.0.0.1", port, timeout_s=0.5)
+    assert time.monotonic() - t0 < 5.0

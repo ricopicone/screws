@@ -348,8 +348,9 @@ by depth, plus a tip: the tree's `ee`/`tip` dummy when there is one, else
 the last joint's child. Methods: `theta()`, `dtheta()`, `tau()` (measured
 joint forces), `command(u)` (dispatches on `mode`), `command_positions`,
 `command_velocities`, `command_torques` (torque mode sets the joint's
-dynamic control mode to force and its target velocity to a large value in
-the sign of the torque, the standard CoppeliaSim idiom), `teleport(theta)`
+dynamic control mode to force and applies the signed torque directly with
+`sim.setJointTargetForce(h, tau, True)`; CoppeliaSim 4.3 and later apply
+the value with its sign in force mode), `teleport(theta)`
 (`sim.setJointPosition`, kinematic, for animating IK histories and
 trajectories without physics), `tip_frame()`, `joint_frames()`, and
 `robot(*, inertias=True) -> Robot`.

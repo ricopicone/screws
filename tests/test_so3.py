@@ -73,3 +73,13 @@ def test_returns_float64_and_near_zero():
     assert so3.exp3(np.zeros((3, 3))).dtype == np.float64
     assert so3.near_zero(-1e-7) and not so3.near_zero(1e-3)
     assert np.allclose(so3.normalize([3, 0, 4]), [0.6, 0, 0.8])
+
+
+def test_log3_half_turn_about_general_axes_roundtrips():
+    # Traces round to -1 ± 1e-15 here; the log must still return a pi rotation.
+    for axis in ([1, 1, 1], [1, 1, 0], [0.3, -0.5, 0.8]):
+        R = so3.rot(so3.normalize(axis), np.pi)
+        L = so3.log3(R)
+        assert np.all(np.isfinite(L))
+        assert np.isclose(np.linalg.norm(so3.so3_to_vec(L)), np.pi, atol=1e-6)
+        assert np.allclose(so3.exp3(L), R, atol=1e-7)
