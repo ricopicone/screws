@@ -1,6 +1,6 @@
 [project]
 name = "screws"
-version = "0.2.0"
+version = "0.3.0"
 description = "Screw-theory robotics: the Modern Robotics library, reorganised, with a CoppeliaSim bridge"
 readme = "README.md"
 license = { file = "LICENSE" }
