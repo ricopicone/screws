@@ -27,7 +27,7 @@ class Scene:
         self.started = False
         self.log = Log() if log else None
 
-    def __enter__(self) -> Scene:
+    def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -102,7 +102,7 @@ class Scene:
             self.start()
         if log and self.log is None:
             self.log = Log()
-        steps = int(round(duration / self.dt))
+        steps = round(duration / self.dt)
         for _ in range(steps):
             theta, dtheta = arm.theta(), arm.dtheta()
             u = controller(self.time, theta, dtheta)

@@ -21,7 +21,7 @@ def test_scene_stops_on_exception():
     sim = two_joint_scene()
     with pytest.raises(ZeroDivisionError), Scene(sim=sim) as scene:
         scene.start()
-        1 / 0
+        raise ZeroDivisionError("controller crashed")
     assert not sim.running
 
 
