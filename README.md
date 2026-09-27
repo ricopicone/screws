@@ -14,6 +14,9 @@ uv add screws                 # the mathematics only; numpy is the sole dependen
 uv add "screws[coppelia]"     # the same, plus the CoppeliaSim ZMQ remote API client
 ```
 
+Extras for the bridge: `screws[plot]` (matplotlib, for `Log.plot`) and `screws[video]`
+(imageio and ffmpeg, for `Recorder`). `uv add "screws[coppelia,plot,video]"` takes all three.
+
 ## Four lines
 
 ```python
@@ -46,6 +49,28 @@ cases = [screws.vec_to_se3(rng.normal(size=6)) for _ in range(20)]
 screws.testing.check(my_exp6, screws.exp6, cases)  # raises on the first disagreement
 ```
 
+## Dynamics and trajectories
+
+```python
+import numpy as np
+import screws
+
+ur5 = screws.robots.ur5()                          # link frames and inertias from the URDF
+theta = np.zeros(6)
+tau_g = ur5.gravity_forces(theta)                  # joint torques that hold the arm still
+M = ur5.mass_matrix(theta)                         # 6x6, symmetric positive definite
+tau = ur5.inverse_dynamics(theta, np.zeros(6), np.ones(6) * 0.1)   # + optional F_tip
+ddtheta = ur5.forward_dynamics(theta, np.zeros(6), tau)
+theta_ref = screws.joint_trajectory(theta, theta + 0.5, T_final=2.0, N=41)   # 41 rows, quintic
+```
+
+`inverse_dynamics`, `mass_matrix`, `velocity_quadratic_forces`, `gravity_forces`,
+`end_effector_forces`, `forward_dynamics`, `euler_step` and the two `*_trajectory` functions
+are MR chapter 8 as free functions too, with the robot's `link_frames`, `link_inertias` and
+`S` passed in. `joint_trajectory`, `screw_trajectory` and `cartesian_trajectory` take
+`scaling="quintic"` (default) or `"cubic"`. A `Robot` without inertias raises
+`MissingInertias` from every dynamics method.
+
 ## CoppeliaSim
 
 Works with CoppeliaSim 4.9 or later through the ZMQ remote API (0.1 verified on 4.10.0).
@@ -61,6 +86,25 @@ with Scene() as scene:                 # connects to localhost:23000 in stepping
 log.plot()                             # four stacked time plots: theta, dtheta, tau, command
 log.to_csv("run.csv")
 ```
+
+**Record a movie.** One frame per simulation step, so the movie plays at simulated time
+however slowly the controller ran:
+
+```python
+with Scene() as scene:
+    arm = scene.arm("/UR5")
+    arm.mode("position")
+    with scene.record_video("run.mp4", position=(1.5, -1.5, 1.0), look_at=(0, 0, 0.4)):
+        scene.run(controller, duration=5.0, arm=arm)
+```
+
+`record_video` creates a camera (or reuses one: `camera="/Camera"`), grabs its image before
+every step (`every=2` halves the frame rate), and on exit writes `.mp4` or `.gif`.
+
+**Read the scene's masses.** `arm.robot(inertias=True)` reads every dynamic shape's mass and
+inertia and builds the MR link frames and spatial inertias, so a model-based controller can
+be run against the simulator's own numbers, and against the textbook's URDF numbers, and the
+difference explained. `relative_to="base"` makes {s} the model's base frame.
 
 `Scene` owns the connection and the clock (`start`, `step`, `stop`, `time`, `dt`,
 `frame`, `show_frame`). `Scene.run` records every step into a `Log` (`t`, `theta`, `dtheta`,

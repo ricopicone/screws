@@ -6,6 +6,6 @@ def test_import_is_light():
         sys.modules.pop(m, None)
     import screws
 
-    assert screws.__version__.startswith("0.1")
+    assert screws.__version__[0].isdigit()  # the exact release pin lives in test_readme_table
     assert "zmq" not in sys.modules
     assert "matplotlib" not in sys.modules
