@@ -49,6 +49,7 @@ HOLE_RADIUS = 0.054  # a regulation cup, 108 mm across
 TURF_THICKNESS = 0.05  # the turf slab the cup is cut through; deep enough to swallow the ball
 TURF_COLOUR = (0.16, 0.55, 0.20)
 TURF_COLOUR_8BIT = tuple(round(255 * c) for c in TURF_COLOUR)
+TEXTURE_SIZE = 1024  # every texture is a square of this size: CoppeliaSim renders non-square ones dark
 SMU_RED = (0.729, 0.047, 0.184)  # Saint Martin's University PMS 200, #BA0C2F
 SMU_RED_8BIT = (186, 12, 47)
 INSERT_MARGIN = 0.10  # the convex-wedge insert around the cup extends this far beyond its rim
@@ -133,33 +134,53 @@ def camera_forward(position, look_at) -> np.ndarray:
     return d / np.linalg.norm(d)
 
 
-def text_image(path, text: str, *, fg=(255, 255, 255), bg=SMU_RED_8BIT, size=(560, 360)) -> Path:
-    """Write a PNG of bold text on a solid background (defaults: white on SMU red), for a flag."""
+def _square_canvas(art, background, size: int = TEXTURE_SIZE):
+    """Scale an RGBA artwork to fit a size x size square and centre it on a background of that
+    colour. CoppeliaSim renders non-square textures at about half brightness (measured on
+    4.10), so every texture laid on the green is a square; the background matches the turf
+    so the unused part of the square is invisible."""
+    from PIL import Image
+
+    w, h = art.size
+    scale = size / max(w, h)
+    inner = (max(1, round(w * scale)), max(1, round(h * scale)))
+    art = art.resize(inner, Image.LANCZOS)
+    canvas = Image.new("RGB", (size, size), background)
+    canvas.paste(art, ((size - inner[0]) // 2, (size - inner[1]) // 2), art)
+    return canvas
+
+
+def text_image(path, text: str, *, fg=(255, 255, 255), bg=SMU_RED_8BIT, aspect: float = 14 / 9, size: int = 512) -> Path:
+    """Write a square PNG of bold text on a solid background (defaults: white on SMU red) for a
+    flag plane of the given width:height aspect: the text is drawn at that aspect and the
+    image stretched to a square, so it reads correctly once mapped onto the plane (a
+    non-square texture would render dark)."""
     from PIL import Image, ImageDraw
 
-    im = Image.new("RGB", size, bg)
+    canvas = (size, max(1, round(size / aspect)))
+    im = Image.new("RGB", canvas, bg)
     draw = ImageDraw.Draw(im)
-    font_size = int(size[1] * 0.6)
+    font_size = int(canvas[1] * 0.6)
     font = _font(font_size)
     while font_size > 8:
         box = draw.textbbox((0, 0), text, font=font)
-        if box[2] - box[0] <= size[0] * 0.85 and box[3] - box[1] <= size[1] * 0.75:
+        if box[2] - box[0] <= canvas[0] * 0.85 and box[3] - box[1] <= canvas[1] * 0.75:
             break
         font_size = int(font_size * 0.9)
         font = _font(font_size)
     box = draw.textbbox((0, 0), text, font=font)
-    x = (size[0] - (box[2] - box[0])) / 2 - box[0]
-    y = (size[1] - (box[3] - box[1])) / 2 - box[1]
+    x = (canvas[0] - (box[2] - box[0])) / 2 - box[0]
+    y = (canvas[1] - (box[3] - box[1])) / 2 - box[1]
     draw.text((x, y), text, font=font, fill=fg)
     path = Path(path)
-    im.save(path)
+    im.resize((size, size), Image.LANCZOS).save(path)
     return path
 
 
 def seal_image(path, artwork, *, disc=(255, 255, 255), background=TURF_COLOUR_8BIT, size: int = 512) -> Path:
     """Write a PNG of a logo (a PNG with transparency, or any image) on a white disc that blends
-    into the turf colour outside the disc, for a flat plane laid on the green. The artwork's own
-    colours are kept, as the brand guide asks."""
+    into the turf outside the disc, for a flat plane laid on the green. The artwork's own
+    colours are kept, as the brand guide asks. size must be a power of two."""
     from PIL import Image, ImageDraw
 
     art = Image.open(artwork).convert("RGBA")
@@ -175,19 +196,31 @@ def seal_image(path, artwork, *, disc=(255, 255, 255), background=TURF_COLOUR_8B
     return path
 
 
-def logo_image(path, artwork, *, background=TURF_COLOUR_8BIT, width: int = 1024) -> Path:
-    """Write a PNG of a logo (a PNG with transparency) composited onto the turf colour at the
-    artwork's own aspect ratio, for a plane laid flat on the green. Colours are kept."""
+def logo_image(path, artwork, *, plate=None, size: int = TEXTURE_SIZE) -> tuple[Path, float]:
+    """Write a square PNG of a logo (a PNG with transparency) for a plane laid flat on the
+    green, and return (path, aspect): the artwork is stretched to fill the square (non-square
+    textures render dark) and reads correctly on a plane of width:height = aspect, which is
+    what build_green's logo_aspect takes. With plate=None the transparent parts take the
+    turf colour, so a white or coloured logo looks painted on the grass; plate=(255, 255, 255)
+    puts it on a white sign. Colours are kept.
+    """
     from PIL import Image
 
     art = Image.open(artwork).convert("RGBA")
-    height = max(1, round(width * art.size[1] / art.size[0]))
-    art = art.resize((width, height), Image.LANCZOS)
-    im = Image.new("RGB", (width, height), background)
-    im.paste(art, (0, 0), art)
+    background = TURF_COLOUR_8BIT if plate is None else plate
+    if plate is not None:  # a visible plate: pad the artwork so the plate shows around it
+        w, h = art.size
+        m = round(0.06 * w)
+        padded = Image.new("RGBA", (w + 2 * m, h + 2 * m), (*plate, 255))
+        padded.paste(art, (m, m), art)
+        art = padded
+    aspect = art.size[0] / art.size[1]
+    canvas = Image.new("RGB", (size, size), background)
+    stretched = art.resize((size, size), Image.LANCZOS)
+    canvas.paste(stretched, (0, 0), stretched)
     path = Path(path)
-    im.save(path)
-    return path
+    canvas.save(path)
+    return path, aspect
 
 
 def surface_mesh(*, size, thickness, center, hole, hole_radius=HOLE_RADIUS, n: int = 96):
@@ -349,6 +382,7 @@ def build_green(
     logo_image=None,
     logo_position=None,
     logo_width: float = 0.6,
+    logo_aspect: float | None = None,
     yaw: float = 0.0,
 ) -> Green:
     """Lay turf with a real cup at (x, y), a pin in it, and a ball at (x, y) on the surface.
@@ -363,7 +397,8 @@ def build_green(
     seal_image) is laid flat on the turf as a seal_size square at seal_position (x, y),
     default: beside the line, on the camera side; logo_image (e.g. from logo_image) is laid
     flat logo_width wide at logo_position, default: just past the seal along the yawed
-    direction. yaw (radians about z) turns both so their text reads along a camera's
+    direction, with height logo_width / logo_aspect (default: the file's own aspect; pass the
+    aspect logo_image returns, since it writes a square). yaw (radians about z) turns both so their text reads along a camera's
     horizontal: pass the camera's right-hand direction, e.g. golf.camera_yaw(position, look_at).
     Everything built is removed when the Scene exits, or by Green.remove().
     """
@@ -403,6 +438,7 @@ def build_green(
     if flag_image is not None:
         flag, _, _ = sim.createTexture(str(flag_image), 0, [flag_w, flag_h])
         _shape(sim, flag, static=True, respondable=False)
+        _colour(sim, flag, (1.0, 1.0, 1.0))
         # a vertical plane: image x along world x, image up along world z, facing -y
         R = np.column_stack([[1.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0, -1.0, 0.0]])
         scene.set_frame(flag, rp_to_transform(R, [hx + 0.004 + flag_w / 2, hy, pin_height - flag_h / 2 - 0.01]))
@@ -419,17 +455,21 @@ def build_green(
     if seal_image is not None:
         seal, _, _ = sim.createTexture(str(seal_image), 0, [seal_size, seal_size])
         _shape(sim, seal, static=True, respondable=False)
+        _colour(sim, seal, (1.0, 1.0, 1.0))  # textures modulate the shape colour
         scene.set_frame(seal, rp_to_transform(R_yaw, [float(seal_position[0]), float(seal_position[1]), thickness + 0.0005]))
     logo = None
     if logo_image is not None:
-        from PIL import Image
+        if logo_aspect is None:
+            from PIL import Image
 
-        w, h = Image.open(logo_image).size
-        logo_h = logo_width * h / w
+            w, h = Image.open(logo_image).size
+            logo_aspect = w / h
+        logo_h = logo_width / logo_aspect
         if logo_position is None:
             logo_position = np.asarray(seal_position, float) + (seal_size / 2 + 0.08 + logo_width / 2) * right
         logo, _, _ = sim.createTexture(str(logo_image), 0, [logo_width, logo_h])
         _shape(sim, logo, static=True, respondable=False)
+        _colour(sim, logo, (1.0, 1.0, 1.0))
         scene.set_frame(logo, rp_to_transform(R_yaw, [float(logo_position[0]), float(logo_position[1]), thickness + 0.0005]))
     ball = sim.createPrimitiveShape(sim.primitiveshape_spheroid, [2 * BALL_RADIUS] * 3, 0)
     sim.setShapeMass(ball, BALL_MASS)

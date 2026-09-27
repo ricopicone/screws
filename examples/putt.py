@@ -26,7 +26,7 @@ DEFAULT_SEAL = Path(
     "/Users/picone/Library/CloudStorage/OneDrive-SaintMartin'sUniversity/SMU HIMSE - Documents/Logos/"
     "EngineeringSeal-black-transparent.png"
 )
-DEFAULT_LOGO = DEFAULT_SEAL.parent / "LogoBanner.png"
+DEFAULT_LOGO = Path("/Users/picone/Downloads/SMU Logos/SMU_PrimaryLogo_AllWhite.png")  # white on transparent
 CAMERA = {"position": (1.85, -1.45, 1.0), "look_at": (0.7, 0.3, 0.2), "resolution": (1920, 1080)}
 CONTROL_DT = 0.005  # a 5 ms control step makes the kinematic strike repeatable; the movie samples every 10th step
 
@@ -47,7 +47,7 @@ def main() -> None:
     art = Path(tempfile.mkdtemp(prefix="screws-putt-"))
     flag_image = golf.text_image(art / "flag.png", args.flag_text) if args.flag_text else None
     seal = golf.seal_image(art / "seal.png", args.seal) if args.seal else None
-    logo = golf.logo_image(art / "logo.png", args.logo) if args.logo else None
+    logo, logo_aspect = golf.logo_image(art / "logo.png", args.logo) if args.logo else (None, None)
 
     with Scene() as scene:
         scene.set_time_step(CONTROL_DT)
@@ -64,7 +64,7 @@ def main() -> None:
         green = golf.build_green(
             scene, ball_position=args.ball, hole_position=args.hole,
             flag_image=flag_image, seal_image=seal, seal_position=seal_position, seal_size=0.35,
-            logo_image=logo, logo_width=0.8,  # logo_position defaults to beside the seal, along the camera's right
+            logo_image=logo, logo_width=1.0, logo_aspect=logo_aspect,  # beside the seal, along the camera's right
             yaw=yaw,
         )
         arm.mode("kinematic")

@@ -144,7 +144,7 @@ def test_text_image_and_seal_image_write_pngs_in_brand_colours(tmp_path):
 
     flag = golf.text_image(tmp_path / "flag.png", "SMU")
     im = Image.open(flag).convert("RGB")
-    assert im.size[0] > im.size[1]
+    assert im.size == (512, 512)  # square: non-square textures render dark
     assert im.getpixel((3, 3)) == golf.SMU_RED_8BIT  # background is SMU red
     assert any(im.getpixel((x, im.size[1] // 2)) == (255, 255, 255) for x in range(im.size[0]))  # white letters
 
@@ -219,11 +219,14 @@ def test_logo_image_keeps_the_artworks_shape_on_turf(tmp_path):
         for y in range(150):
             art.putpixel((x, y), (186, 12, 47, 255))  # a red banner with a transparent bottom strip
     art.save(src)
-    out = golf.logo_image(tmp_path / "logo.png", src, width=800)
+    out, aspect = golf.logo_image(tmp_path / "logo.png", src, size=1024)
     im = Image.open(out).convert("RGB")
-    assert im.size == (800, 400)
-    assert im.getpixel((10, 10)) == golf.SMU_RED_8BIT
-    assert im.getpixel((10, 390)) == golf.TURF_COLOUR_8BIT  # transparent parts become turf
+    assert im.size == (1024, 1024) and aspect == pytest.approx(2.0)  # square texture, true aspect returned
+    assert im.getpixel((10, 10)) == golf.SMU_RED_8BIT  # the artwork fills the square (stretched)
+    assert im.getpixel((10, 1000)) == golf.TURF_COLOUR_8BIT  # its transparent strip is turf
+    plated, aspect2 = golf.logo_image(tmp_path / "plated.png", src, size=1024, plate=(255, 255, 255))
+    im2 = Image.open(plated).convert("RGB")
+    assert im2.size == (1024, 1024) and im2.getpixel((5, 512)) == (255, 255, 255) and aspect2 < 2.0
 
 
 def test_build_green_places_the_logo_after_the_seal(tmp_path):
@@ -233,14 +236,15 @@ def test_build_green_places_the_logo_after_the_seal(tmp_path):
     seal = tmp_path / "seal.png"
     seal.write_bytes(b"png")
     logo = tmp_path / "logo.png"
-    Image.new("RGB", (400, 200), (10, 10, 10)).save(logo)
+    Image.new("RGB", (400, 400), (10, 10, 10)).save(logo)
     with Scene(sim=sim) as scene:
         green = golf.build_green(
             scene, ball_position=(0.5, 0.3), hole_position=(0.9, 0.3),
-            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3, logo_image=logo, logo_width=0.6,
+            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3,
+            logo_image=logo, logo_width=0.6, logo_aspect=2.0,
         )
         plane = sim.objects[green.logo]
-        assert plane.texture == str(logo) and np.allclose(plane.plane, (0.6, 0.3))  # the image's aspect
+        assert plane.texture == str(logo) and np.allclose(plane.plane, (0.6, 0.3))  # width / aspect
         T = scene.frame(green.logo)
         assert np.isclose(T[1, 3], -0.15) and T[0, 3] > 0.9 + 0.15 + 0.3  # beside the seal, further along
         assert np.isclose(T[2, 3], green.top + 0.0005)
@@ -250,7 +254,7 @@ def test_build_green_places_the_logo_after_the_seal(tmp_path):
         yaw = 0.6
         g2 = golf.build_green(
             scene, ball_position=(0.5, 0.3), hole_position=(0.9, 0.3),
-            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3, logo_image=logo, logo_width=0.6, yaw=yaw,
+            seal_image=seal, seal_position=(0.9, -0.15), seal_size=0.3, logo_image=logo, logo_width=0.6, logo_aspect=2.0, yaw=yaw,
         )
         Ts, Tl = scene.frame(g2.seal), scene.frame(g2.logo)
         assert np.allclose(Ts[:3, 0], [np.cos(yaw), np.sin(yaw), 0]) and np.allclose(Tl[:3, 0], Ts[:3, 0])
