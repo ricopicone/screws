@@ -106,8 +106,10 @@ def screw_axis(q, s_hat, h) -> np.ndarray:
 def revolute_axis(q, s_hat) -> np.ndarray:
     """Zero-pitch screw axis (omega, v) = (s_hat, -s_hat x q) through the point q.
 
-    Addition, not in the MR library; the joint-frame derivation of notes 4.1.
-    MR 3.3.2.2.
+    s_hat is the unit direction of the axis, the textbook's s-hat for a general screw
+    (MR 3.3.2.2); for a revolute joint it is the omega-hat of the notes' Definition 3.12,
+    so revolute_axis(q, omega_hat) reads naturally too. Addition, not in the MR library;
+    the joint-frame derivation of notes 4.1.
     """
     q, s_hat = np.asarray(q, dtype=float), np.asarray(s_hat, dtype=float)
     return np.concatenate([s_hat, -np.cross(s_hat, q)])
