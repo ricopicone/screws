@@ -114,6 +114,30 @@ in one of three modes (`position`, `velocity`, `torque`), or `teleport`s without
 to animate an IK history. `Arm.robot()` derives M and the screw axes from the scene's
 joint frames (omega is the joint's z axis, v = -omega x q).
 
+## Pictures of the screw axes
+
+```python
+import screws
+from screws import viz
+
+ur5 = screws.robots.ur5()
+viz.draw_robot(ur5)                                   # skeleton, {s}, and S_1 ... S_6 at home
+viz.draw_robot(ur5, frame="body")                     # the same robot seen from {b}: B_1 ... B_6
+viz.draw_robot(ur5, joints=[2], show=("skeleton", "frames", "axes", "omega", "construction"))
+viz.draw_screw(screws.screw_axis(q=[0.3, 0, 0], s_hat=[0, 0, 1], h=0.05))   # one axis by itself
+viz.explore(ur5)                                      # joint sliders, in a notebook
+```
+
+![The UR5 at home with joint 3's screw axis and the construction of v_3](docs/media/viz_ur5.png)
+
+`draw_robot` draws the robot's skeleton at `theta` (default: home), the reference frame,
+and one screw axis per joint through the joint's home position with its ω̂ arrow. With
+`"construction"` it also draws, for each chosen joint, the point q on the axis, the cross
+product −ω̂×q, the pitch term hω̂, and their sum v at the origin, so the formula
+v = −ω̂×q + hω̂ is something you can look at. The body-frame view redraws everything in {b},
+which is why the B_i differ from the S_i. Every drawing returns the vectors it drew, so a
+figure can be checked by hand. Needs `screws[plot]`.
+
 ## An example: putting
 
 ![The UR5 sinks a 60 cm putt on a green with the Saint Martin's seal and logo](docs/media/putt.gif)

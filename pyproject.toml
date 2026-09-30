@@ -1,6 +1,6 @@
 [project]
 name = "screws"
-version = "0.3.0"
+version = "0.4.0"
 description = "Screw-theory robotics: the Modern Robotics library, reorganised, with a CoppeliaSim bridge"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -10,7 +10,7 @@ dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 coppelia = ["coppeliasim-zmqremoteapi-client==2.0.4"]
-plot = ["matplotlib>=3.7"]
+plot = ["matplotlib>=3.7", "ipywidgets>=8"]
 video = ["imageio>=2.31", "imageio-ffmpeg>=0.4"]
 
 [dependency-groups]

@@ -462,7 +462,8 @@ function's docstring points at them.
 | 0.1 | Fri 2026-10-09 | Sim 2 lab session Mon 10/12, due Wed 10/14 (week 8) | so3, se3, kinematics, `Robot`, `IKResult` with history, `urdf`, `robots.ur5`/`rrp`, `testing`, aliases, bridge (`Scene`, `Arm` without inertias, `Log`) |
 | 0.2 | Mon 2026-10-26 | capstone assigned (week 10), Checkpoint 1 kinematics (week 12) | dynamics, trajectory, `Arm.robot(inertias=True)`, `Recorder` and `Scene.camera` (`screws[video]`) |
 | 0.3 | shipped 2026-09-27 | the putting example | `screws.coppelia.golf`, `Arm.mode("kinematic")`, model script removal, `Scene.track`/`set_time_step`, square-texture signs |
-| 0.4 | Mon 2026-11-16 | Checkpoint 2 planning (week 14), Checkpoint 3 control and Sim 3 (week 15) | control, torque mode, `simulate_control` against the scene |
+| 0.4 | shipped 2026-09-30 | Sim 1 and the chapter 4 problems | `screws.viz`: draw_robot (space and body frames, the construction of v), draw_screw, explore |
+| 0.5 | Mon 2026-11-16 | Checkpoint 2 planning (week 14), Checkpoint 3 control and Sim 3 (week 15) | control, torque mode, `simulate_control` against the scene |
 
 Published to PyPI by hand (the course's `uv`-managed repo pins the
 version); the release checklist runs the `coppelia`-marked tests against
