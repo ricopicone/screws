@@ -121,6 +121,12 @@ def _decompose(omega, v):
     return q, h, -np.cross(omega, q), h * omega
 
 
+def _palette():
+    import matplotlib
+
+    return [matplotlib.colormaps["tab10"](k) for k in range(10)]
+
+
 def _set_equal(ax, points, pad=0.15):
     pts = np.asarray(points, float)
     lo, hi = pts.min(axis=0), pts.max(axis=0)
@@ -149,7 +155,9 @@ def draw_robot(
     """Draw a robot's skeleton at theta (default: home) with its screw axes at home.
 
     frame="space" draws in {s} with the S_i; frame="body" draws in {b} with the B_i, so
-    the tool frame sits at the origin and the base is wherever M^{-1} puts it. joints
+    the tool frame sits at the origin and the base is wherever M^{-1} puts it. The skeleton
+    joins the joints' home positions when the robot knows them (a URDF, a scene, or
+    joint_frames_home); otherwise only the base and the tool are marked. joints
     selects which joints get axes (indices from 0; default all). show is any of
     "skeleton", "frames", "axes" (the axis lines), "omega" (the omega arrows at q_i),
     "construction" (q_i, -omega_i x q_i, h_i omega_i and v_i at the origin), "labels".
@@ -162,18 +170,23 @@ def draw_robot(
     fig, ax = _axes(ax, figsize)
     T_ref = np.eye(4) if frame == "space" else transform_inv(robot.M)
     axes_mat = robot.S if frame == "space" else robot.B
+    known = robot.joint_frames_home is not None
     homes = robot.joint_frames_home or tuple(robot._fallback_joint_frames())
     homes_ref = [T_ref @ F for F in homes]
     posed = [T_ref @ F for F in robot.frames(theta)]  # joint frames then the tool, at theta
-    skeleton = np.array([T_ref[:3, 3]] + [F[:3, 3] for F in posed])
+    if known:
+        skeleton = np.array([T_ref[:3, 3]] + [F[:3, 3] for F in posed])
+    else:  # joint positions unknown: only the base and the tool, no made-up links
+        skeleton = np.array([T_ref[:3, 3], posed[-1][:3, 3]])
     joints_sel = list(range(robot.n)) if joints is None else list(joints)
     reach = max(float(np.linalg.norm(p)) for p in skeleton) or 1.0
     L = axis_length if axis_length is not None else 0.35 * reach
 
     if "skeleton" in show:
-        ax.plot(skeleton[:, 0], skeleton[:, 1], skeleton[:, 2], "-", color=COLOURS["skeleton"], lw=2.5)
-        ax.plot(skeleton[1:-1, 0], skeleton[1:-1, 1], skeleton[1:-1, 2], "o", color=COLOURS["joint"], ms=5)
-        ax.plot(skeleton[-1:, 0], skeleton[-1:, 1], skeleton[-1:, 2], "s", color="black", ms=5)
+        if known:
+            ax.plot(skeleton[:, 0], skeleton[:, 1], skeleton[:, 2], "-", color=COLOURS["skeleton"], lw=3)
+            ax.plot(skeleton[1:-1, 0], skeleton[1:-1, 1], skeleton[1:-1, 2], "o", color=COLOURS["joint"], ms=7)
+        ax.plot(skeleton[-1:, 0], skeleton[-1:, 1], skeleton[-1:, 2], "s", color="black", ms=6)
     if "frames" in show:
         _triad(ax, np.eye(4), 0.25 * reach, "{s}" if frame == "space" else "{b}")
         other = T_ref @ robot.M if frame == "space" else T_ref
@@ -181,6 +194,7 @@ def draw_robot(
 
     drawing = RobotDrawing(fig, ax, frame, skeleton)
     extents = [skeleton]
+    palette = _palette()
     for i in joints_sel:
         omega, v = axes_mat[:3, i].copy(), axes_mat[3:, i].copy()
         kind = robot.joint_types[i]
@@ -190,18 +204,18 @@ def draw_robot(
             cross = -np.cross(omega, q)
             pitch_term = h * omega
         jd = JointDrawing(i, kind, omega, v, q, h, cross, pitch_term)
-        colour = COLOURS["axis"]
+        colour = palette[i % len(palette)]
         direction = omega if kind == "revolute" else v / np.linalg.norm(v)
         anchor = q if kind == "revolute" else homes_ref[i][:3, 3]
         if "axes" in show:
             a, b = anchor - L * direction, anchor + L * direction
-            (jd.axis_line,) = ax.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], "--", color=colour, lw=1.2)
+            (jd.axis_line,) = ax.plot([a[0], b[0]], [a[1], b[1]], [a[2], b[2]], "--", color=colour, lw=1.4)
             extents.append(np.array([a, b]))
-            if labels:
+            if labels:  # at the far end of the line, clear of the joint and its neighbours
                 name = ("S" if frame == "space" else "B") + str(i + 1)
-                ax.text(*(anchor + 0.05 * reach * direction), name, color=colour, fontsize=9)
+                ax.text(*b, name, color=colour, fontsize=10, fontweight="bold")
         if "omega" in show and kind == "revolute":
-            jd.omega_arrow = _arrow(ax, q, 0.6 * L * omega, COLOURS["omega"], lw=2.5)
+            jd.omega_arrow = _arrow(ax, q, 0.6 * L * omega, colour, lw=2.5)
         if "construction" in show:
             o = np.zeros(3)
             if kind == "revolute":
@@ -226,6 +240,7 @@ def draw_robot(
                     ax.text(*(anchor + 0.6 * L * v), f"v{i + 1}", color=COLOURS["v"], fontsize=9)
         drawing.joints.append(jd)
     _set_equal(ax, np.vstack(extents))
+    ax.view_init(elev=22, azim=-58)
     ax.set_title(f"screw axes in {{{'s' if frame == 'space' else 'b'}}} at home" + ("" if not np.any(theta) else ", arm at θ"))
     return drawing
 

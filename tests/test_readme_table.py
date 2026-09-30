@@ -16,5 +16,5 @@ def test_every_alias_is_in_the_readme_table():
 def test_version_is_release():
     import screws
 
-    assert screws.__version__ == "0.4.0"
-    assert 'version = "0.4.0"' in (README.parent / "pyproject.toml").read_text()
+    assert screws.__version__ == "0.4.1"
+    assert 'version = "0.4.1"' in (README.parent / "pyproject.toml").read_text()

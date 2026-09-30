@@ -99,12 +99,14 @@ class Robot:
         joint_types=None,
         joint_names=None,
         joint_limits=None,
+        joint_frames_home=None,
     ) -> Robot:
         """Build a robot from M and a sequence of space-frame screw axes, one 6-vector per joint.
 
         The axes must be a sequence (list or tuple), not a 2-D array: a 6x6 array is
         ambiguous when n = 6. Joint types default to reading each axis (omega = 0 means
-        prismatic). Notes 4.1.
+        prismatic). joint_frames_home, one 4x4 frame per joint at the home position, lets
+        frames() and the drawings place the joints where they really are. Notes 4.1.
         """
         if isinstance(axes, np.ndarray) and axes.ndim == 2:
             raise TypeError(
@@ -130,6 +132,7 @@ class Robot:
             joint_types=tuple(joint_types),
             joint_names=tuple(joint_names),
             joint_limits=joint_limits,
+            joint_frames_home=None if joint_frames_home is None else tuple(joint_frames_home),
         )
 
     @classmethod

@@ -95,3 +95,27 @@ def test_draw_into_a_given_axes_and_scale():
     assert d.ax is ax and d.fig is fig
     x0, x1 = d.joints[0].axis_line.get_data_3d()[2][:2]
     assert np.isclose(abs(x1 - x0), 1.0)  # a 0.5 m half-length either way along joint 1's z axis
+
+
+def test_unknown_joint_positions_draw_no_skeleton_but_axes_and_tool():
+    from screws import Robot
+
+    ur5 = robots.ur5(source="textbook")  # built from screw axes: no joint frames known
+    assert ur5.joint_frames_home is None
+    d = viz.draw_robot(ur5)
+    assert d.skeleton.shape == (2, 3)  # base and tool only
+    assert len(d.joints) == 6 and all(j.axis_line is not None for j in d.joints)
+    # with frames supplied, the full skeleton comes back
+    frames = robots.ur5().joint_frames_home
+    r = Robot.from_screw_axes(ur5.M, list(ur5.S.T), joint_frames_home=frames)
+    assert r.joint_frames_home is not None and len(r.joint_frames_home) == 6
+    d2 = viz.draw_robot(r)
+    assert d2.skeleton.shape == (8, 3)
+
+
+def test_axis_labels_sit_at_the_far_end_of_the_axis_lines():
+    ur5 = robots.ur5()
+    d = viz.draw_robot(ur5, axis_length=0.5)
+    texts = {t.get_text(): np.array(t.get_position_3d()) for t in d.ax.texts}
+    j = d.joints[0]
+    assert np.allclose(texts["S1"], j.q + 0.5 * j.omega, atol=0.06)
