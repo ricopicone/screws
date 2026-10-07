@@ -35,9 +35,9 @@ columns); a CoppeliaSim mode.
 - **door**: hinge line through q = (2, 0, 0), ŝ = +z, h = 0. {b} on the handle,
   T_sb(0) = (I, (2.9, 0, 1)). S_s = (0,0,1, 0,−2,0), S_b = (0,0,1, 0,0.9,0). Slab 1.1 wide,
   2 high, from the hinge along +x. θ from 0 to 100°.
-- **drawer**: ω = 0, v̂ along +y out of a cabinet front at y = 0; slides 0.4 m. Equal
+- **drawer**: ω = 0, v̂ along +y out of a cabinet front at y = 0; slides 0.45 m. Equal
   arrows on all marked points; no axis line, only the direction v̂.
-- **screwdriver**: ŝ = −z (driving down), q on the z-axis, pitch exaggerated (h = 0.02 m/rad,
+- **screwdriver**: ŝ = −z (driving down), q on the z-axis, pitch exaggerated (h = 0.01 m/rad,
   stated in the title) so the advance is visible; two turns.
 
 ## Entry points

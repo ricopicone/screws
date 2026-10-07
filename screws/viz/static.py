@@ -14,9 +14,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .robot import Robot
-from .se3 import transform_inv
-from .so3 import near_zero
+from ..robot import Robot
+from ..se3 import transform_inv
+from ..so3 import near_zero
 
 __all__ = ["JointDrawing", "RobotDrawing", "ScrewDrawing", "draw_robot", "draw_screw", "explore"]
 
