@@ -7,7 +7,7 @@ animate_screw, compare_frames (animate.py), with the scenes door, drawer and scr
 """
 
 from .animate import Animation, animate_screw, animate_twist, compare_frames
-from .scenes import Mesh, Scene, box, door, drawer, prism, screwdriver
+from .scenes import Mesh, Scene, box, door, drawer, prism, screw_between, screwdriver
 from .static import (  # noqa: F401  COLOURS and SHOW_DEFAULT stay importable from screws.viz
     COLOURS,
     SHOW_DEFAULT,
@@ -36,5 +36,6 @@ __all__ = [
     "drawer",
     "explore",
     "prism",
+    "screw_between",
     "screwdriver",
 ]

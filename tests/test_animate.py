@@ -69,3 +69,32 @@ def test_import_screws_does_not_import_matplotlib():
     code = "import sys, screws; screws.viz.door(); print('matplotlib' in sys.modules)"
     out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
     assert out.stdout.strip() == "False"
+
+
+def _rot(axis, deg):
+    from screws import so3
+
+    return so3.exp3(so3.vec_to_so3(np.asarray(axis, float) / np.linalg.norm(axis) * np.deg2rad(deg)))
+
+
+def test_screw_between_takes_the_start_frame_to_the_end_frame(tmp_path):
+    from screws import se3
+
+    Ta = se3.rp_to_transform(_rot([0, 0, 1], 20), [0.3, -0.2, 0.0])
+    Tb = se3.rp_to_transform(_rot([1, 1, 0], 120), [1.1, 0.7, 0.6])
+    sc = viz.screw_between(Ta, Tb)
+    assert np.isclose(np.linalg.norm(sc.S[:3]), 1.0)  # a unit screw axis, theta the angle turned
+    assert np.allclose(sc.T0, Ta) and np.allclose(sc.goal, Tb)
+    a = viz.animate_screw(sc, frames=4)
+    assert np.allclose(a.transforms[0], Ta) and np.allclose(a.transforms[-1], Tb)
+    a.save(tmp_path / "b.gif", dpi=30)
+
+
+def test_screw_between_pure_translation():
+    from screws import se3
+
+    Ta = se3.rp_to_transform(np.eye(3), [0, 0, 0])
+    Tb = se3.rp_to_transform(np.eye(3), [0.3, 0.4, 0])
+    sc = viz.screw_between(Ta, Tb)
+    assert sc.is_translation and np.isclose(sc.theta[1], 0.5)
+    assert np.allclose(motion.screw_motion(sc.S, sc.T0, [sc.theta[1]])[0], Tb)

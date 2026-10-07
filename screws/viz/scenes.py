@@ -12,9 +12,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from ..se3 import adjoint, rp_to_transform, screw_axis, transform_inv
+from ..motion import screw_line
+from ..se3 import adjoint, axis_angle6, log6, rp_to_transform, screw_axis, se3_to_vec, transform_inv
 
-__all__ = ["Mesh", "Scene", "box", "door", "drawer", "prism", "screwdriver"]
+__all__ = ["Mesh", "Scene", "box", "door", "drawer", "prism", "screw_between", "screwdriver"]
 
 WOOD = "#c8955c"
 STEEL = "#9aa3ab"
@@ -82,6 +83,7 @@ class Scene:
     arrow_scale: float = 0.5
     view: tuple = (24, 32)  # the notes' house view: x toward the lower left, y right, z up
     note: str = ""
+    goal: np.ndarray | None = None  # where the motion ends, drawn faded with the start
 
     @property
     def S_b(self) -> np.ndarray:
@@ -163,4 +165,33 @@ def screwdriver(pitch: float = 0.01) -> Scene:
         arrow_scale=2.5,
         view=(30, 32),
         note=f"pitch {pitch:g} m/rad, exaggerated",
+    )
+
+
+def screw_between(T_start, T_end, *, body=None, name: str = "screw motion") -> Scene:
+    """The one screw motion that carries the frame T_start to T_end (both in {s}): from
+    [S] theta = log(T_end T_start^{-1}), with S a unit screw axis (|omega| = 1, or |v| = 1
+    for a translation) and theta the angle turned (the distance slid). Every rigid-body
+    displacement is a screw motion (Chasles); this shows which one. The frame's origin
+    traces the helix, and the start and end frames are drawn faded. MR 3.3.3.2; notes 3.7.
+    """
+    T_start, T_end = np.asarray(T_start, float), np.asarray(T_end, float)
+    S, theta = axis_angle6(se3_to_vec(log6(T_end @ transform_inv(T_start))))
+    reach = float(np.linalg.norm(T_end[:3, 3] - T_start[:3, 3])) + 0.3
+    a = 0.12 * reach  # a phone-shaped slab, sized to the motion
+    if body is None:
+        body = [box([-0.5 * a, -a, -0.08 * a], [0.5 * a, a, 0.08 * a], "#3B83CD")]
+    points = np.array([[0.0, 0, 0], [0.5 * a, a, 0.08 * a], [-0.5 * a, -a, 0.08 * a]])
+    _, _, h = screw_line(S)
+    turned = f"{theta:.3g} m slid" if np.allclose(S[:3], 0) else f"{np.rad2deg(theta):.0f}° turned"
+    return Scene(
+        name,
+        S,
+        T_start,
+        list(body),
+        (0.0, theta),
+        points,
+        arrow_scale=0.15 * reach / max(theta, 1e-9),
+        note=f"{turned}, pitch h = {h:.3g}",
+        goal=T_end,
     )

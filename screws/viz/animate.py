@@ -98,6 +98,12 @@ def _matrix(M, w=6, p=2) -> str:
     return "\n".join("[" + " ".join(_fmt(x, w, p) for x in row) + " ]" for row in M)
 
 
+def _rgba(c, alpha):
+    from matplotlib.colors import to_rgba as _to_rgba
+
+    return _to_rgba(c, alpha)
+
+
 class _Painter:
     """Draws one scene at one configuration on a 3D axes; fixed limits for every frame."""
 
@@ -116,6 +122,8 @@ class _Painter:
             P = self._points(T)
             pts.append(P + self.k * point_velocity(scene.S, P))
         pts += [m.vertices for m in scene.fixed]
+        if scene.goal is not None:
+            pts.append(scene.goal[None, :3, 3])
         allp = np.vstack(pts)
         self.size = float(np.ptp(allp, axis=0).max())
         if self.q is not None:  # the axis: the stretch of line beside everything drawn
@@ -144,6 +152,9 @@ class _Painter:
         ax.add_collection3d(Poly3DCollection(polys, facecolors=colours, edgecolors=(0, 0, 0, 0.35), linewidths=0.4, zorder=1))
         L = 0.14 * self.size
         self._triad(ax, np.eye(4), L, "{s}", letters=True)
+        if sc.goal is not None:
+            self._triad(ax, sc.T0, L, "start", alpha=0.35)
+            self._triad(ax, sc.goal, L, "end", alpha=0.35)
         self._triad(ax, T, L * b_triad, "{b}")
         if axis:
             self._axis(ax)
@@ -180,13 +191,13 @@ class _Painter:
             return None
         return ax.quiver(*o, *vec, color=colour, linewidth=lw, arrow_length_ratio=0.18, zorder=5)
 
-    def _triad(self, ax, T, length, label, letters=False):
+    def _triad(self, ax, T, length, label, letters=False, alpha=1.0):
         o = T[:3, 3]
         for k, c in enumerate("xyz"):
-            self._arrow(ax, o, length * T[:3, k], COLOURS[c], 1.6)
+            self._arrow(ax, o, length * T[:3, k], _rgba(COLOURS[c], alpha), 1.6)
             if letters:
                 ax.text(*(o + 1.12 * length * T[:3, k]), c, color=COLOURS[c], fontsize=9)
-        ax.text(*(o - 0.45 * length * T[:3, 2]), label, fontsize=11, ha="center", va="top")
+        ax.text(*(o - 0.45 * length * T[:3, 2]), label, fontsize=11, ha="center", va="top", alpha=max(alpha, 0.6))
 
 
 def _frames(n_motion):
