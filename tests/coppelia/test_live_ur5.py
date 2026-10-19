@@ -2,8 +2,12 @@
 loaded at /UR5 (Model browser > robots > non-mobile > UR5, or sim.loadModel on UR5.ttm).
 
 Run with: SCREWS_COPPELIASIM=1 uv run pytest -q -m coppelia
-They are skipped otherwise (see tests/conftest.py).
+They are skipped otherwise (see tests/conftest.py). SCREWS_COPPELIASIM_PORT picks another
+instance than the default 23000 (start one with -GzmqRemoteApi.rpcPort=<port>).
 """
+
+import os
+import time
 
 import numpy as np
 import pytest
@@ -17,7 +21,7 @@ pytestmark = pytest.mark.coppelia
 def scene():
     from screws.coppelia import Scene
 
-    with Scene() as sc:
+    with Scene(port=int(os.environ.get("SCREWS_COPPELIASIM_PORT", "23000"))) as sc:
         yield sc
 
 
@@ -125,3 +129,25 @@ def test_putt_moves_the_ball_toward_the_hole(scene):
     assert abs(end[1] - start[1]) < 0.05  # and stayed on the line
     assert res.distance < 0.25
     assert res.face_path[:, 2].min() > green.top + 0.002  # the putter never dips into the turf
+
+
+def test_released_simulation_runs_on_its_own_and_step_takes_it_back(scene):
+    """Idle in stepping mode, CoppeliaSim's window locks up (the abort-execution banner); a
+    released scene runs by itself and the window stays live. Holding the arm still while it
+    runs needs no help: the joints keep their position targets."""
+    arm = scene.arm("/UR5")
+    arm.mode("position")
+    scene.start()
+    target = np.array([0.4, -0.3, 0.2, 0.0, 0.0, 0.0])
+    arm.command_positions(target)
+    for _ in range(60):
+        scene.step()
+    scene.release()
+    t0 = scene.time
+    time.sleep(1.5)
+    assert scene.time > t0 + 0.5  # running without us
+    assert np.allclose(arm.theta(), target, atol=2e-3)  # and the arm held its pose
+    scene.step()  # takes the clock back
+    t1 = scene.time
+    time.sleep(1.0)
+    assert scene.time == t1  # held again: time moves only on step()

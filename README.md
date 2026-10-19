@@ -101,12 +101,19 @@ with Scene() as scene:
 `record_video` creates a camera (or reuses one: `camera="/Camera"`), grabs its image before
 every step (`every=2` halves the frame rate), and on exit writes `.mp4` or `.gif`.
 
+**In a notebook, release the clock between cells.** In stepping mode CoppeliaSim waits for
+the next `step()`, and while it waits its window stops redrawing; after a few seconds it shows
+a "ZMQ remote API server ... abort execution" banner, and clicking that kills the remote API
+and strands the notebook. End a cell that stepped with `scene.release()`: the simulation then
+runs on its own (position targets hold the arm still) and the window stays live. The next
+`scene.step()` takes the clock back.
+
 **Read the scene's masses.** `arm.robot(inertias=True)` reads every dynamic shape's mass and
 inertia and builds the MR link frames and spatial inertias, so a model-based controller can
 be run against the simulator's own numbers, and against the textbook's URDF numbers, and the
 difference explained. `relative_to="base"` makes {s} the model's base frame.
 
-`Scene` owns the connection and the clock (`start`, `step`, `stop`, `time`, `dt`,
+`Scene` owns the connection and the clock (`start`, `step`, `release`, `stop`, `time`, `dt`,
 `frame`, `show_frame`). `Scene.run` records every step into a `Log` (`t`, `theta`, `dtheta`,
 `tau`, `command`, `T_sb` as arrays); `Log.plot()` draws one time-series axis per joint quantity
 and shows the figure, `Log.to_csv` writes it out. `Arm` reads (`theta`, `dtheta`, `tau`, `tip_frame`) and commands

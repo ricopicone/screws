@@ -4,7 +4,8 @@
    only if the `modern_robotics` pin changed (step 5).
 2. With CoppeliaSim open (4.9 or later; 0.1 was verified on 4.10.0) and the stock UR5 model
    loaded at `/UR5` (Model browser > robots > non-mobile > UR5.ttm; no tip dummy needed),
-   run the simulator tests: `SCREWS_COPPELIASIM=1 uv run pytest -q -m coppelia`.
+   run the simulator tests: `SCREWS_COPPELIASIM=1 uv run pytest -q -m coppelia`
+   (`SCREWS_COPPELIASIM_PORT=<port>` for an instance started with `-GzmqRemoteApi.rpcPort=<port>`).
    If a run is killed mid-way the simulation can be left waiting on a dead stepping
    client; `Scene.start()` stops such a simulation first, so a rerun recovers by itself.
 3. Bump the version in `screws/_version.py` and `pyproject.toml` (they must agree;

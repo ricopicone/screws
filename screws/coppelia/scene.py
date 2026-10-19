@@ -23,11 +23,19 @@ class Scene:
     ``with Scene() as scene:`` connects (or takes an injected ``sim``), switches on
     stepping, and on exit stops the simulation if this object started it. Time only
     advances when you call step().
+
+    In a notebook, call release() when a cell has finished stepping. A stepping client that
+    sits idle blocks CoppeliaSim's window: it stops redrawing, and after a few seconds it
+    shows a "ZMQ remote API server ... abort execution" banner, which, clicked, kills the
+    remote API and strands the notebook. Released, the simulation runs on its own between
+    cells (the joints hold their targets) and the window stays live; the next step() takes
+    the clock back.
     """
 
     def __init__(self, host="localhost", port=23000, *, sim=None, log: bool = True):
         self.sim = _sim.connect(host, port) if sim is None else sim
         self.sim.setStepping(True)
+        self.released = False
         self.started = False
         self.log = Log() if log else None
         self._triads: dict[str, list[int]] = {}
@@ -84,10 +92,22 @@ class Scene:
         self.started = True
 
     def step(self) -> None:
-        """Advance one simulation step; active recorders grab a frame first."""
+        """Advance one simulation step; active recorders grab a frame first. After release(),
+        the clock is taken back first."""
+        if self.released:
+            self.sim.setStepping(True)
+            self.released = False
         for rec in list(self._recorders):
             rec.tick()
         self.sim.step()
+
+    def release(self) -> None:
+        """Hand the clock back to CoppeliaSim until the next step(): the simulation runs on
+        its own, at its own pace, and CoppeliaSim's window keeps redrawing. Call it at the end
+        of a notebook cell that stepped; idle in stepping mode, the window locks up."""
+        if not self.released:
+            self.sim.setStepping(False)
+            self.released = True
 
     def stop(self) -> None:
         """Stop the simulation and wait until it has actually stopped.

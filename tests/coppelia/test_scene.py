@@ -170,3 +170,30 @@ def test_set_time_step_changes_dt_and_is_restored_on_exit():
             scene.start()
             scene.set_time_step(0.02)
     assert sim.getSimulationTimeStep() == 0.05  # put back when the Scene exits
+
+
+def test_release_hands_the_clock_back_and_step_takes_it_again():
+    # A stepping client that sits idle blocks CoppeliaSim's window (the "abort execution"
+    # banner); release() lets the simulation run on its own between bursts of stepping.
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        scene.start()
+        scene.release()
+        assert not sim.stepping and scene.released
+        t0 = scene.time
+        scene.step()  # takes the clock back first, then steps
+        assert sim.stepping and not scene.released
+        assert np.isclose(scene.time - t0, scene.dt)
+    assert not sim.stepping
+
+
+def test_release_is_idempotent_and_survives_a_stop():
+    sim = two_joint_scene()
+    with Scene(sim=sim) as scene:
+        scene.start()
+        scene.release()
+        scene.release()
+        scene.stop()
+        scene.start()
+        scene.step()
+        assert sim.stepping
