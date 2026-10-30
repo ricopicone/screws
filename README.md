@@ -196,6 +196,69 @@ inline in a notebook, and `.data` holds the numbers drawn. `viz.Scene`, `viz.box
 `viz.prism` build your own body. The geometry is `screws.screw_line`, `screw_motion`,
 `point_velocity` and `helix`, numpy only. `examples/screw_motions.py` writes every GIF here.
 
+## Jacobians and manipulability ellipsoids
+
+```python
+import numpy as np
+import screws
+from screws import viz
+
+ur5, arm = screws.robots.ur5(), screws.robots.planar_2r()        # planar_2r: the notes' 2R arm
+theta = [0.3, -1.1, 1.4, 0.2, 0.9, -0.5]
+theta0, theta1 = [0, -1.2, 1.5, -1.6, -1.57, 0], [1.2, -0.9, 1.1, -1.3, -1.0, 0.4]
+viz.draw_jacobian(ur5, theta)                       # each column of J_s as the joint's screw axis now
+viz.draw_jacobian(arm, [0, np.pi / 4], dtheta=[1, 0.5])   # the columns J_i θ̇_i head to tail: ṗ
+viz.draw_ellipsoid(ur5, theta, force=True)          # manipulability and force ellipsoids at the tool
+viz.animate_robot(arm, [np.pi / 6, 2.4], [np.pi / 3, 0])   # constant joint rates into a singularity
+viz.animate_robot(ur5, theta0, theta1, path="screw")      # a constant twist of the tool instead
+viz.compare_paths(ur5, theta0, theta1)              # the two side by side
+viz.explore(ur5, draw=viz.draw_ellipsoid)           # sliders, in a notebook
+```
+
+Column i of J_s(θ) is joint i's screw axis *now*, S_i carried by the joints inboard of it.
+`draw_jacobian` draws it as that: a dashed line through the joint, labelled J_si, with the
+matrix beside the robot in matching colours, and at the tool an arrow per joint for the
+velocity it gives the tool point at unit rate. With `dtheta` those arrows are scaled and laid
+head to tail, summing to ṗ. `frame="body"` redraws the same lines from {b} and prints J_b. The
+title gives the rank and says when the configuration is singular.
+
+![The UR5 with each joint's current screw axis, the tool velocities they give, and J_s(θ)](docs/media/jacobian_ur5.png)
+
+`draw_ellipsoid` draws the manipulability ellipsoid at the tool. Its semi-axes are √λ_i along
+the eigenvectors of A = JJᵀ. The linear one comes from J_b's linear rows, as MR advises,
+turned into {s} so it sits on the tool. With `force=True` the force ellipsoid is drawn too:
+the same axes, with semi-axes 1/√λ_i. μ1, μ2 and μ3 go in the title. At a singularity the
+force ellipsoid is unbounded along the lost direction. It is drawn as its bounded section,
+with that axis dotted and marked ∞, never as a big finite ellipsoid. A planar arm is drawn
+flat. These are the notes' 2R postures, both at one scale (`scale=0.3, force_scale=0.3`):
+
+![The 2R arm at θ = (0, π/4) and (0, 3π/4) with its manipulability (red) and force (dashed) ellipses](docs/media/ellipses_2r.png)
+
+**Through a change of configuration.** `animate_robot` moves the robot from one
+configuration to another at a constant rate, with the axes and the ellipsoid following and
+the semi-axes charted underneath. A singularity shows as a semi-axis going to zero. The
+default is constant joint rates, a straight line in joint space. `path="screw"` moves the
+tool at a constant twist instead, the screw motion between the two tool frames, with the
+joints following by inverse kinematics. Any (N, n) path plays as given: a `joint_trajectory`,
+or an `IKResult.history` to watch Newton–Raphson converge. `.data` holds J_s, J_b, θ̇, V_s,
+V_b and the semi-axes for every frame.
+
+![The 2R arm straightening at constant joint rates, its ellipse collapsing to a segment](docs/media/ellipse_2r.gif)
+
+![The UR5 straightening its elbow, J_s(θ) changing beside it, until rank J_s = 5](docs/media/ellipsoid_ur5.gif)
+
+`compare_paths` plays both kinds of constant rate from the same start to the same end. Under
+constant joint rates the tool's twist changes, so the tool does not follow a screw. Under a
+constant twist the tool follows its helix, and the joint rates change.
+
+![Constant joint rates beside a constant twist of the tool: the same start and end, two routes](docs/media/paths_ur5.gif)
+
+The numbers need no matplotlib: `screws.manipulability_ellipsoid(J)` and
+`screws.force_ellipsoid(J)` return an `Ellipsoid` (centre, axes, eigenvalues, radii,
+`measures`, `outline()`, `surface()`) for any block of a Jacobian.
+`robot.manipulability_ellipsoid(theta)` and `robot.force_ellipsoid(theta)` give the tool's
+ellipsoids in {s}. `examples/jacobians.py` writes every picture here.
+
 ## An example: putting
 
 ![The UR5 sinks a 60 cm putt on a green with the Saint Martin's seal and logo](docs/media/putt.gif)

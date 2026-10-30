@@ -37,13 +37,6 @@ MANIPULABILITY, FORCE = "#C0392B", "#555555"  # the notes' chapter 5 figures
 SHOW_JACOBIAN = ("skeleton", "frames", "axes", "columns")
 SHOW_ELLIPSOID = ("skeleton", "frames", "ellipsoid")
 SHOW_ANIMATION = ("skeleton", "frames", "axes", "ellipsoid", "path")
-_SUB = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
-
-
-def _sub(k) -> str:
-    return str(k).translate(_SUB)
-
-
 def is_planar(robot: Robot) -> bool:
     """True when every joint axis is along z and every v lies in the xy plane: the tool
     point then moves in a plane z = const, and its velocity has two components."""
@@ -284,7 +277,7 @@ class _RobotPainter:
             ax.axis("off")
         else:
             _set_equal(ax, self.limits, pad=0.05 * self.reach)
-            ax.set_box_aspect((1, 1, 1), zoom=1.15)
+            ax.set_box_aspect((1, 1, 1), zoom=1.05)
             ax.view_init(*self.view)
         if title:
             ax.set_title(title, fontsize=11)
@@ -403,7 +396,7 @@ class _RobotPainter:
 class _MatrixPanel:
     """J printed at (x, y) in figure coordinates, each column in its joint's colour."""
 
-    LABEL = 9  # the name and "=", in character widths
+    LABEL = 7  # the name and "=", in character widths
 
     def __init__(self, fig, x, y, J, name, palette, fontsize=10.5):
         m, n = J.shape
@@ -690,12 +683,12 @@ def animate_robot(
         figsize = (7.2 + (_matrix_inches(painter.poses[0].J) if matrix else 0), 7.6 if chart else 6.2)
     mw = min(7.2 / figsize[0], 0.7) if matrix else 1.0
     fig = plt.figure(figsize=figsize)
-    top = 0.30 if chart else 0.06
-    ax = painter.axes(fig, [0.0, top, mw, 0.97 - top])
-    caption = fig.text(0.5 * mw, top - 0.015, "", ha="center", va="top", family="monospace", fontsize=9.5)
+    top = (0.30 if painter.planar else 0.34) if chart else 0.08
+    ax = painter.axes(fig, [0.0, top, mw, 0.96 - top])
+    caption = fig.text(0.5 * mw, top - 0.03, "", ha="center", va="top", family="monospace", fontsize=9.5)
     cursor = None
     if chart:
-        cax = fig.add_axes([0.11, 0.06, mw - 0.17, 0.15])
+        cax = fig.add_axes([0.11, 0.06, mw - 0.17, 0.13])
         units = _units(robot, kind, False)
         for k in range(data["radii"].shape[1]):
             cax.plot(s, data["radii"][:, k], color=MANIPULABILITY, lw=1.5, alpha=0.45 + 0.55 * k / max(1, data["radii"].shape[1] - 1))
@@ -715,9 +708,10 @@ def animate_robot(
     def update(k):
         p = painter.poses[k]
         painter.draw(ax, k, title=title, trace=trace)
-        _, singular = _rank(p, painter.planar)
+        rank, singular = _rank(p, painter.planar)
         caption.set_text(
-            f"{_theta_text(robot, p.theta)}\n{_measures_text(p.manip)}" + ("   singular" if singular else "")
+            f"{_theta_text(robot, p.theta)}\n{_measures_text(p.manip)}"
+            + (f"\nrank {'J' if painter.planar else 'J_s'} = {rank}, singular" if singular else "")
         )
         if cursor is not None:
             cursor.set_xdata([s[k], s[k]])
@@ -775,7 +769,7 @@ def compare_paths(
         c.legend(fontsize=8, ncol=6, loc="upper center", bbox_to_anchor=(0.5, -0.3), frameon=False, handlelength=1.2)
     curs = [cl.axvline(0, color="black", lw=1.0), cr.axvline(0, color="black", lw=1.0)]
     vb = dr["V_b"][0]
-    fixed_l = "θ̇ = (" + ", ".join(_fmt(x, 0, 2) for x in dj[0]) + ") per unit s, fixed"
+    fixed_l = "dθ/ds = (" + ", ".join(_fmt(x, 0, 2) for x in dj[0]) + "), fixed"
     fixed_r = "V_b = (" + ", ".join(_fmt(x, 0, 2) for x in vb) + ") per unit s, fixed"
     fig.text(0.25, 0.335, fixed_l, ha="center", va="top", family="monospace", fontsize=9)
     fig.text(0.75, 0.335, fixed_r, ha="center", va="top", family="monospace", fontsize=9)
