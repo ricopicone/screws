@@ -5,8 +5,14 @@ joint's screw axis now (J_si(theta) is S_i carried by the joints inboard of it) 
 velocity it gives the tool at unit rate. draw_ellipsoid draws the manipulability ellipsoid,
 and the force ellipsoid, at the tool. animate_robot moves the robot through a change of
 configuration at a constant rate, joint rates or tool twist, with both following and the
-semi-axes charted; compare_paths plays the two kinds of constant rate side by side. A planar
-arm (every joint axis along z, every v in the plane) is drawn flat, in x-hat_1 and x-hat_2.
+semi-axes charted; compare_paths plays the two kinds of constant rate side by side. Every
+robot is drawn in 3D; planar=True draws a planar arm (every joint axis along z, every v in
+the plane) flat, in x-hat_1 and x-hat_2, as the notes draw the 2R arm.
+
+One colour per meaning, never per joint, and none of red, green and blue, which are the
+frames' x, y and z: links orange and joints blue as in the notes, each joint's axis in the
+joints' blue, the velocities the joints give the tool (and the manipulability ellipsoid, the
+set of them) in VELOCITY, the force ellipsoid grey and dashed. Labels tell the joints apart.
 Needs matplotlib (``screws[plot]``). MR 5.1, 5.4, 9.2; notes 5.1, 5.2, 5.5.
 """
 
@@ -20,7 +26,7 @@ from ..kinematics import Ellipsoid, force_ellipsoid, manipulability_ellipsoid
 from ..robot import Robot
 from ..se3 import exp6, log6, se3_to_vec, transform_inv
 from .animate import Animation, _finish, _fmt
-from .static import COLOURS, _palette, _set_equal
+from .static import COLOURS, _set_equal
 
 __all__ = [
     "ColumnDrawing",
@@ -33,15 +39,17 @@ __all__ = [
     "is_planar",
 ]
 
-MANIPULABILITY, FORCE = "#C0392B", "#555555"  # the notes' chapter 5 figures
+AXIS = COLOURS["axis"]  # a joint's axis, in the joints' blue
+VELOCITY = "#8E44AD"  # the velocities the joints give the tool: not x's red, which is at the tool too
+MANIPULABILITY, FORCE = VELOCITY, "#555555"
+PATH = "#8C8C8C"
 SHOW_JACOBIAN = ("skeleton", "frames", "axes", "columns")
 SHOW_ELLIPSOID = ("skeleton", "frames", "ellipsoid")
 SHOW_ANIMATION = ("skeleton", "frames", "axes", "ellipsoid", "path")
 def is_planar(robot: Robot) -> bool:
-    """True when every joint axis is along z and every v lies in the xy plane: the tool
-    point then moves in a plane z = const, and its velocity has two components."""
-    S = robot.S
-    return bool(np.allclose(S[:2], 0) and np.allclose(S[5], 0))
+    """True when the robot can be drawn flat with planar=True: every joint axis along z and
+    every v in the xy plane (Robot.is_planar)."""
+    return robot.is_planar()
 
 
 @dataclass
@@ -123,7 +131,7 @@ class _RobotPainter:
         thetas,
         *,
         frame="space",
-        planar=None,
+        planar=False,
         kind="linear",
         show=SHOW_JACOBIAN,
         dthetas=None,
@@ -137,7 +145,12 @@ class _RobotPainter:
         if kind not in ("linear", "angular"):
             raise ValueError(f'kind must be "linear" or "angular"; got {kind!r}')
         self.robot, self.frame, self.kind, self.show, self.labels = robot, frame, kind, tuple(show), labels
-        self.planar = is_planar(robot) if planar is None else bool(planar)
+        self.planar = bool(planar)
+        if self.planar and not robot.is_planar():
+            raise ValueError(
+                f"planar=True draws a planar arm flat, and {robot.name} is not one: its joint axes "
+                "are not all along z with v in the xy plane"
+            )
         if self.planar and kind == "angular":
             raise ValueError(
                 "a planar arm turns its tool about z only: its angular ellipsoid is a segment, "
@@ -147,7 +160,6 @@ class _RobotPainter:
         self.thetas = np.atleast_2d(np.asarray(thetas, float))
         self.dthetas = None if dthetas is None else np.atleast_2d(np.asarray(dthetas, float))
         self.known = robot.joint_frames_home is not None
-        self.palette = _palette()
         self.view = view or (22, -58)
         self.poses = [self._pose(k) for k in range(len(self.thetas))]
         base = np.vstack([p.skeleton for p in self.poses])
@@ -248,8 +260,8 @@ class _RobotPainter:
             ax.computed_zorder = False  # arrows and labels over the ellipsoid, always
         show = self.show
         if "path" in show and trace is not None:
-            ax.plot(*trace.T, ":", color=COLOURS["pitch"], lw=1.0, alpha=0.7)
-            ax.plot(*trace[: k + 1].T, "-", color=COLOURS["pitch"], lw=1.8)
+            ax.plot(*trace.T, ":", color=PATH, lw=1.0)
+            ax.plot(*trace[: k + 1].T, "-", color=PATH, lw=1.8)
         if "skeleton" in show:
             self._skeleton(ax, p)
         if "frames" in show:
@@ -328,8 +340,8 @@ class _RobotPainter:
     def _axes(self, ax, p):
         L = 0.35 * self.reach
         sub = "s" if self.frame == "space" else "b"
+        colour = AXIS
         for i, ((_, s_hat, h), q) in enumerate(zip(p.lines, p.joints)):
-            colour = self.palette[i % len(self.palette)]
             if self.planar:  # every axis points out of the page: a dot for +z, a cross for -z
                 if self.robot.joint_types[i] == "revolute":
                     ax.plot(*q, "." if p.Js[2, i] > 0 else "x", color=colour, ms=6, zorder=4)
@@ -345,14 +357,17 @@ class _RobotPainter:
         tool = p.tool
         if dtheta is None:
             for i in range(self.robot.n):
-                colour = self.palette[i % len(self.palette)]
                 label = (f"$J_{{{i + 1}}}$" if self.planar else f"{i + 1}") if self.labels else None
-                self._arrow(ax, tool, self.column_scale * p.C[:, i], colour, 2.0, label)
+                self._arrow(ax, tool, self.column_scale * p.C[:, i], VELOCITY, 2.0, label)
             return
         tail = tool.copy()
         for i in range(self.robot.n):
             step = self.velocity_scale * p.C[:, i] * dtheta[i]
-            self._arrow(ax, tail, step, self.palette[i % len(self.palette)], 2.0)
+            if self._arrow(ax, tail, step, VELOCITY, 2.0) is not None and self.labels:  # at the middle, to one side
+                side = np.array([step[1], -step[0]]) if self.planar else np.zeros(3)
+                side = 0.04 * self.reach * side / (np.linalg.norm(side) or 1.0)
+                name = f"$J_{{{i + 1}}}\\dot\\theta_{{{i + 1}}}$" if self.planar else f"{i + 1}"
+                ax.text(*(tail + 0.5 * step + side), name, color=VELOCITY, fontsize=10, ha="left", va="center", zorder=6)
             tail = tail + step
         label = (r"$\dot{p}$" if self.frame == "space" else "$v_b$") if self.labels else None
         self._arrow(ax, tool, tail - tool, "black", 2.6, label)
@@ -394,11 +409,11 @@ class _RobotPainter:
 
 
 class _MatrixPanel:
-    """J printed at (x, y) in figure coordinates, each column in its joint's colour."""
+    """J printed at (x, y) in figure coordinates."""
 
     LABEL = 7  # the name and "=", in character widths
 
-    def __init__(self, fig, x, y, J, name, palette, fontsize=10.5):
+    def __init__(self, fig, x, y, J, name, fontsize=10.5):
         m, n = J.shape
         self.prec = 3 if m <= 3 else 2
         w = self.prec + 5
@@ -409,7 +424,7 @@ class _MatrixPanel:
         x0, dx = x + self.LABEL * cw, (w + 1) * cw
         self.texts = []
         for j in range(n):
-            t = fig.text(x0 + j * dx, y, "", family="monospace", fontsize=fontsize, va="center", ha="left", color=palette[j % len(palette)])
+            t = fig.text(x0 + j * dx, y, "", family="monospace", fontsize=fontsize, va="center", ha="left")
             self.texts.append(t)
         self.w = w
         self.update(J)
@@ -423,6 +438,14 @@ def _matrix_inches(J, fontsize=10.5) -> float:
     """The width a _MatrixPanel of J needs at fontsize, with a margin."""
     w = (3 if J.shape[0] <= 3 else 2) + 5
     return (_MatrixPanel.LABEL + J.shape[1] * (w + 1)) * 0.6 * fontsize / 72 + 0.35
+
+
+def _joint_shades(n) -> list:
+    """n shades of the joints' blue, light at the base to dark at the tool, for charts."""
+    import matplotlib.colors as mcolors
+
+    base = np.array(mcolors.to_rgb(AXIS))
+    return [tuple(map(float, 1 - (1 - base) * f if f <= 1 else base * (2 - f))) for f in np.linspace(0.45, 1.45, n)]
 
 
 def _rank(p: _Pose, planar) -> tuple[int, bool]:
@@ -466,7 +489,7 @@ def draw_jacobian(
     dtheta=None,
     show=SHOW_JACOBIAN,
     matrix: bool = True,
-    planar=None,
+    planar: bool = False,
     ax=None,
     figsize=None,
     labels: bool = True,
@@ -475,15 +498,16 @@ def draw_jacobian(
     """The robot at theta with each column of its Jacobian drawn as what it is.
 
     Column i of J_s(theta) is joint i's screw axis now, S_i carried by the joints inboard of
-    it; it is drawn as a dashed line through the joint (with its omega-hat for a revolute
-    joint), labelled Js_i. At the tool, an arrow per joint gives the velocity of the tool
-    point when that joint alone turns at unit rate, R_sb J_bv[:, i]: for a planar arm these
-    are the columns J_i(theta) of the notes' 2 x n J(theta), and the joint axes, all out of
-    the page, are marked in the joint circles. With dtheta the arrows are J_i dtheta_i, head
-    to tail, summing to the tool point's velocity p-dot. frame="body" draws in {b} and prints
-    J_b; the lines are the same lines, seen from the tool. The matrix is printed beside the
-    robot, each column in its joint's colour (only when this function makes the figure).
-    The title gives the rank, and says singular when it is below min(6, n) (min(2, n) in 2D).
+    it; it is drawn as a dashed line through the joint in the joints' blue (with its
+    omega-hat for a revolute joint), labelled Js_i. At the tool, an arrow per joint, numbered,
+    gives the velocity of the tool point when that joint alone turns at unit rate,
+    R_sb J_bv[:, i]. With dtheta the arrows are scaled by dtheta_i and laid head to tail,
+    summing to the tool point's velocity p-dot. frame="body" draws in {b} and prints J_b;
+    the lines are the same lines, seen from the tool. planar=True draws a planar arm flat:
+    the arrows are then the columns J_i(theta) of the notes' 2 x n J(theta), which is the
+    matrix printed, and the joint axes, all out of the page, are marked in the joint circles.
+    The matrix is printed beside the robot (only when this function makes the figure). The
+    title gives the rank, and says singular when it is below min(6, n) (min(2, n) in 2D).
     MR 5.1.1-5.1.2, 5.3; notes 5.1, 5.2, 5.4.
     """
     import matplotlib.pyplot as plt
@@ -507,7 +531,7 @@ def draw_jacobian(
     title = f"{robot.name}: ${name}(\\theta)$, rank {rank}" + (", singular" if singular else "")
     painter.draw(ax, 0, title=title)
     if with_matrix:
-        _MatrixPanel(fig, split, 0.5, p.J, f"${name}(\\theta)$", painter.palette)
+        _MatrixPanel(fig, split, 0.5, p.J, f"${name}(\\theta)$")
         fig.text(split, 0.08, _theta_text(robot, theta), family="monospace", fontsize=10)
     columns = []
     for i, ((S, s_hat, h), q) in enumerate(zip(p.lines, p.joints)):
@@ -526,24 +550,27 @@ def draw_ellipsoid(
     show=None,
     scale=None,
     force_scale=None,
-    planar=None,
+    planar: bool = False,
     ax=None,
     figsize=None,
     labels: bool = True,
     view=None,
 ) -> EllipsoidDrawing:
-    """The robot at theta with its manipulability ellipsoid at the tool (red, its principal
-    semi-axes drawn) and, with force=True, the force ellipsoid (grey, dashed).
+    """The robot at theta with its manipulability ellipsoid at the tool (in VELOCITY, its
+    principal semi-axes drawn) and, with force=True, the force ellipsoid (grey, dashed).
 
     kind="linear" is the velocity of the tool point, from J_b's linear rows as MR advises,
     turned into {s} so it sits where the tool is; kind="angular" is the angular velocity,
     from J_s's angular rows. scale is drawing metres per unit of semi-axis (m/s, or rad/s);
-    the default makes the longest semi-axis 0.3 of the robot's reach. force_scale defaults to
-    scale, as the notes draw both. A force ellipsoid at a singularity is unbounded along the
+    the default makes the longest semi-axis 0.3 of the robot's reach. force_scale has its own
+    default, the same rule for the force ellipsoid; pass force_scale=scale to draw both at one
+    scale, as the notes do. A force ellipsoid at a singularity is unbounded along the
     lost direction: its bounded section is drawn and that axis is dotted and marked ∞; a
     semi-axis longer than the plot is cut short and marked …. The title gives the semi-axes
     and mu1, mu2, mu3. For a chain mixing revolute and prismatic joints the semi-axes mix
-    units and no unit is printed (notes 5.5). MR 5.4; notes 5.1, 5.5.
+    units and no unit is printed (notes 5.5). Every robot is drawn in 3D, where a planar
+    arm's ellipsoid is flat and its mu are infinite; planar=True draws it flat, the ellipse of
+    the notes' 2 x n J(theta). MR 5.4; notes 5.1, 5.5.
     """
     import matplotlib.pyplot as plt
 
@@ -652,7 +679,7 @@ def animate_robot(
     force: bool = False,
     chart: bool = True,
     matrix: bool = False,
-    planar=None,
+    planar: bool = False,
     scale=None,
     view=None,
     figsize=None,
@@ -668,8 +695,9 @@ def animate_robot(
     items of draw_jacobian and draw_ellipsoid plus "path" (the tool's path) and "velocity"
     (the tool point's velocity, d/ds of its position). The chart plots the semi-axes against
     s from 0 to 1, so a singularity shows as one going to zero. matrix prints J_s(theta)
-    (J in 2D) beside the robot. .data holds s, theta, dtheta (per unit s), T_sb, J_s, J_b,
-    V_s, V_b, tool, radii and measures for every frame. MR 5.4, 9.2; notes 5.5.
+    beside the robot (J with planar=True, which draws a planar arm flat). .data holds s,
+    theta, dtheta (per unit s), T_sb, J_s, J_b, V_s, V_b, tool, radii and measures for every
+    frame. MR 5.4, 9.2; notes 5.5.
     """
     import matplotlib.pyplot as plt
 
@@ -701,7 +729,7 @@ def animate_robot(
     panel = None
     if matrix:
         name = r"$J(\theta)$" if painter.planar else r"$J_s(\theta)$"
-        panel = _MatrixPanel(fig, mw, 0.62, painter.poses[0].J, name, painter.palette)
+        panel = _MatrixPanel(fig, mw, 0.62, painter.poses[0].J, name)
     how = {"joint": "constant joint rates", "screw": "constant twist of the tool"}
     title = f"{robot.name}: " + (how[path] if theta_end is not None else "a given path")
 
@@ -729,7 +757,7 @@ def compare_paths(
     frames: int = 60,
     fps: int = 20,
     show=("skeleton", "frames", "path", "velocity"),
-    planar=None,
+    planar: bool = False,
     view=None,
     figsize=(12.5, 7.6),
 ) -> Animation:
@@ -757,10 +785,10 @@ def compare_paths(
     cl = fig.add_axes([0.07, 0.11, 0.38, 0.14])
     cr = fig.add_axes([0.57, 0.11, 0.38, 0.14])
     names = [r"$\omega_1$", r"$\omega_2$", r"$\omega_3$", "$v_1$", "$v_2$", "$v_3$"]
-    for j in range(6):
-        cl.plot(sj, dl["V_b"][:, j], lw=1.4, label=names[j], color=_palette()[j])
-    for i in range(robot.n):
-        cr.plot(ss, ds[:, i], lw=1.4, label=f"$\\dot\\theta_{i + 1}$", color=right.palette[i % len(right.palette)])
+    for j in range(6):  # a component along x-hat_b, y-hat_b or z-hat_b in that axis's colour; v dashed
+        cl.plot(sj, dl["V_b"][:, j], "-" if j < 3 else "--", lw=1.4, label=names[j], color=COLOURS["xyz"[j % 3]])
+    for i, colour in enumerate(_joint_shades(robot.n)):
+        cr.plot(ss, ds[:, i], lw=1.4, label=f"$\\dot\\theta_{i + 1}$", color=colour)
     for c, ttl in ((cl, r"$\mathcal{V}_b(s)$, changing"), (cr, r"$\dot\theta(s)$, changing")):
         c.set_xlim(0, 1)
         c.set_title(ttl, fontsize=9.5)

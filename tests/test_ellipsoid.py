@@ -143,5 +143,13 @@ def test_planar_2r_is_the_notes_arm():
     assert np.allclose(arm.frames(theta)[1][:3, 3], [1, 0, 0])  # the elbow
     longer = robots.planar_2r(L1=2.0, L2=0.5)
     assert np.allclose(longer.fk([0, 0])[:3, 3], [2.5, 0, 0])
-    e = arm.manipulability_ellipsoid(theta)  # 3D, flat in z
-    assert np.allclose(sorted(e.radii), [0, 0.341, 2.073], atol=1e-3)
+    e = arm.manipulability_ellipsoid(theta)  # 3D like any robot's, flat in z
+    assert np.allclose(sorted(e.radii), [0, 0.341, 2.073], atol=1e-3) and e.measures[0] == np.inf
+    flat = arm.manipulability_ellipsoid(theta, planar=True)  # the notes' ellipse, in the plane
+    assert np.allclose(flat.radii, [0.341, 2.073], atol=1e-3) and np.isclose(flat.measures[0], 6.08, atol=0.01)
+    assert np.allclose(flat.center, T[:2, 3]) and np.allclose(flat.matrix, two_r_J(*theta) @ two_r_J(*theta).T)
+    assert np.allclose(arm.force_ellipsoid(theta, planar=True).radii, [2.932, 0.482], atol=1e-3)
+    with pytest.raises(ValueError, match="segment"):
+        arm.manipulability_ellipsoid(theta, kind="angular", planar=True)
+    with pytest.raises(ValueError, match="not planar"):
+        robots.ur5().manipulability_ellipsoid(np.zeros(6), planar=True)

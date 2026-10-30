@@ -1,7 +1,8 @@
 """Jacobians and manipulability ellipsoids, as pictures and GIFs: the UR5's Jacobian columns,
-the notes' 2R ellipses (section 5.5), the UR5's ellipsoids, the 2R arm stretching into its
-singularity, the UR5 straightening its elbow, and constant joint rates beside a constant
-twist. Writes into docs/media, or the directory given:
+the 2R arm's columns head to tail, the notes' 2R ellipses (section 5.5) and the stretched-out
+singularity, the UR5's ellipsoids, the 2R arm stretching into its singularity, the UR5
+straightening its elbow, and constant joint rates beside a constant twist. The 2R arm is
+drawn flat (planar=True), as the notes draw it. Writes into docs/media, or the directory given:
 uv run python examples/jacobians.py [dir]
 """
 
@@ -32,20 +33,27 @@ def wrote(name):
 viz.draw_jacobian(ur5, pose).fig.savefig(out / "jacobian_ur5.png", dpi=80)
 wrote("jacobian_ur5.png")
 
+# The 2R arm flat, its matrix the notes' 2 x 2 J; given theta-dot the columns go head to tail to p-dot.
+viz.draw_jacobian(arm, [0, PI / 4], dtheta=[1, 0.5], planar=True).fig.savefig(out / "jacobian_2r_dtheta.png", dpi=80)
+wrote("jacobian_2r_dtheta.png")
+
 # The notes' figure of section 5.5: the 2R arm at two postures, both ellipses at one scale.
 fig, axes = plt.subplots(1, 2, figsize=(10, 4.6))
 for ax, t2 in zip(axes, (PI / 4, 3 * PI / 4)):
-    viz.draw_ellipsoid(arm, [0, t2], force=True, scale=0.3, force_scale=0.3, ax=ax)
+    viz.draw_ellipsoid(arm, [0, t2], force=True, scale=0.3, force_scale=0.3, planar=True, ax=ax)
 fig.tight_layout()
 fig.savefig(out / "ellipses_2r.png", dpi=80)
 wrote("ellipses_2r.png")
+
+# Stretched out: the ellipse a segment, the force ellipse unbounded along the arm.
+viz.draw_ellipsoid(arm, [0.3, 0], force=True, planar=True).fig.savefig(out / "singular_2r.png", dpi=80)
+wrote("singular_2r.png")
 
 viz.draw_ellipsoid(ur5, pose, force=True).fig.savefig(out / "ellipsoid_ur5.png", dpi=80)
 wrote("ellipsoid_ur5.png")
 
 # Moving: the 2R arm straightens at constant joint rates and its ellipse collapses to a segment.
-show = ("skeleton", "frames", "ellipsoid", "force", "path")
-viz.animate_robot(arm, [PI / 6, 2.4], [PI / 3, 0.0], show=show).save(out / "ellipse_2r.gif", dpi=70)
+viz.animate_robot(arm, [PI / 6, 2.4], [PI / 3, 0.0], force=True, planar=True).save(out / "ellipse_2r.gif", dpi=70)
 wrote("ellipse_2r.gif")
 
 # The UR5 straightens its elbow (theta3 -> 0, a singularity), with J_s(theta) beside it.

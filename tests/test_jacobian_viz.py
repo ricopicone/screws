@@ -51,16 +51,19 @@ def test_tool_velocity_columns_sum_head_to_tail_to_p_dot():
     assert np.allclose(body.velocity, ur5.jacobian_body(UR5_THETA)[3:] @ dtheta)  # v_b
 
 
-def test_planar_2r_is_drawn_flat_with_the_notes_J():
+def test_planar_2r_is_drawn_like_any_robot_and_flat_when_asked():
     arm = robots.planar_2r()
     assert viz.is_planar(arm) and not viz.is_planar(robots.ur5()) and not viz.is_planar(robots.rrp())
-    d = viz.draw_jacobian(arm, [0, PI / 4])
+    plain = viz.draw_jacobian(arm, [0, PI / 4])
+    assert not plain.planar and plain.ax.name == "3d" and np.allclose(plain.J, arm.jacobian_space([0, PI / 4]))
+    d = viz.draw_jacobian(arm, [0, PI / 4], planar=True)
     assert d.planar and d.ax.name != "3d"
     assert np.allclose(d.J, [[-0.7071, -0.7071], [1.7071, 0.7071]], atol=1e-4)
     assert d.rank == 2 and not d.singular
-    stretched = viz.draw_jacobian(arm, [0.3, 0.0])
+    stretched = viz.draw_jacobian(arm, [0.3, 0.0], planar=True)
     assert stretched.rank == 1 and stretched.singular and "singular" in stretched.ax.get_title()
-    assert viz.draw_jacobian(arm, [0, PI / 4], planar=False).ax.name == "3d"
+    with pytest.raises(ValueError, match="not one"):
+        viz.draw_jacobian(robots.ur5(), UR5_THETA, planar=True)
 
 
 def test_ur5_singular_pose_has_rank_five():
@@ -71,17 +74,22 @@ def test_ur5_singular_pose_has_rank_five():
 
 def test_draw_ellipsoid_planar_matches_the_notes_and_the_core():
     arm = robots.planar_2r()
-    d = viz.draw_ellipsoid(arm, [0, PI / 4], force=True)
+    d = viz.draw_ellipsoid(arm, [0, PI / 4], force=True, planar=True)
     assert d.planar and d.ax.name != "3d"
     assert np.allclose(d.manipulability.radii, [0.341, 2.073], atol=1e-3)
+    core = arm.manipulability_ellipsoid([0, PI / 4], planar=True)
+    assert np.allclose(d.manipulability.radii, core.radii) and np.allclose(d.manipulability.axes, core.axes)
     assert np.allclose(d.force.radii, [2.932, 0.482], atol=1e-3)
     assert np.allclose(d.manipulability.center, [1 + np.cos(PI / 4), np.sin(PI / 4)])
     reach = np.linalg.norm(d.manipulability.center)  # as far as the drawn arm extends from its base
     assert np.isclose(d.scale * d.manipulability.radii.max(), 0.3 * reach)  # the longest semi-axis 0.3 of it
     assert np.isclose(d.force_scale * d.force.radii.max(), 0.3 * reach) and not d.clipped  # its own units
-    same = viz.draw_ellipsoid(arm, [0, PI / 4], force=True, force_scale=d.scale)  # the notes' one scale
+    same = viz.draw_ellipsoid(arm, [0, PI / 4], force=True, force_scale=d.scale, planar=True)  # the notes' one scale
     assert same.force_scale == same.scale
     assert "μ1 = 6.08" in d.ax.get_title()
+    flat = viz.draw_ellipsoid(arm, [0, PI / 4])  # in 3D: flat in z, so mu1 is infinite
+    assert flat.ax.name == "3d" and np.allclose(sorted(flat.manipulability.radii), [0, 0.341, 2.073], atol=1e-3)
+    assert "μ1 = ∞" in flat.ax.get_title()
 
 
 def test_draw_ellipsoid_3d_is_the_robots_ellipsoid():
@@ -96,7 +104,7 @@ def test_draw_ellipsoid_3d_is_the_robots_ellipsoid():
 
 
 def test_singular_force_ellipse_is_marked_unbounded_not_drawn_finite():
-    d = viz.draw_ellipsoid(robots.planar_2r(), [0.3, 0.0], force=True)
+    d = viz.draw_ellipsoid(robots.planar_2r(), [0.3, 0.0], force=True, planar=True)
     assert np.isinf(d.force.radii).any() and d.manipulability.singular
     texts = [t.get_text() for t in d.ax.texts]
     assert "∞" in texts
@@ -109,20 +117,20 @@ def test_singular_force_ellipse_is_marked_unbounded_not_drawn_finite():
 
 def test_planar_angular_ellipsoid_is_refused():
     with pytest.raises(ValueError, match="segment"):
-        viz.draw_ellipsoid(robots.planar_2r(), [0, 1], kind="angular")
-    viz.draw_ellipsoid(robots.planar_2r(), [0, 1], kind="angular", planar=False)  # fine in 3D
+        viz.draw_ellipsoid(robots.planar_2r(), [0, 1], kind="angular", planar=True)
+    viz.draw_ellipsoid(robots.planar_2r(), [0, 1], kind="angular")  # fine in 3D
 
 
 def test_draw_into_a_given_axes():
     fig, axes = plt.subplots(1, 2)
-    a = viz.draw_ellipsoid(robots.planar_2r(), [0, PI / 4], ax=axes[0], force=True)
-    b = viz.draw_ellipsoid(robots.planar_2r(), [0, 3 * PI / 4], ax=axes[1], force=True)
+    a = viz.draw_ellipsoid(robots.planar_2r(), [0, PI / 4], ax=axes[0], force=True, planar=True)
+    b = viz.draw_ellipsoid(robots.planar_2r(), [0, 3 * PI / 4], ax=axes[1], force=True, planar=True)
     assert a.fig is fig and b.ax is axes[1]
 
 
 def test_animate_robot_constant_joint_rates(tmp_path):
     arm = robots.planar_2r()
-    a = viz.animate_robot(arm, [0, PI / 2], [0.4, 0.05], frames=6, force=True)
+    a = viz.animate_robot(arm, [0, PI / 2], [0.4, 0.05], frames=6, force=True, planar=True)
     th = a.data["theta"]
     assert np.allclose(th[0], [0, PI / 2]) and np.allclose(th[-1], [0.4, 0.05])
     assert np.allclose(a.data["dtheta"], [0.4, 0.05 - PI / 2])  # the same rates in every frame
@@ -130,8 +138,7 @@ def test_animate_robot_constant_joint_rates(tmp_path):
     for k in range(6):
         V_b = arm.jacobian_body(th[k]) @ a.data["dtheta"][k]
         assert np.allclose(a.data["V_b"][k], V_b)
-        assert np.allclose(a.data["radii"][k], screws.manipulability_ellipsoid(
-            arm.fk(th[k])[:2, :3] @ arm.jacobian_body(th[k])[3:]).radii)
+        assert np.allclose(a.data["radii"][k], arm.manipulability_ellipsoid(th[k], planar=True).radii)
     assert a.data["radii"][-1].min() < a.data["radii"][0].min()  # approaching the stretched-out singularity
     assert a.save(tmp_path / "a.gif", dpi=30).stat().st_size > 1000
 

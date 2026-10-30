@@ -32,8 +32,11 @@ package should make each of those one call, for any robot, and then set them mov
    T_sb(θ_start) to T_sb(θ_end), the joints following by IK). `viz.compare_paths` plays the
    two side by side: under constant θ̇ the twist changes; under a constant twist θ̇ changes.
    MR 9.2 makes the point in words; this makes it in a picture.
-6. Planar arms drawn flat. A robot whose joint axes are all along ẑ with every v in the
-   plane is drawn in 2D (x̂_1, x̂_2), matching the notes' 2R figures; anything else in 3D.
+6. Planar arms drawn flat on request. Every robot is drawn in 3D, a planar one included;
+   `planar=True` draws a robot whose joint axes are all along ẑ with every v in the plane in
+   2D (x̂_1, x̂_2), matching the notes' 2R figures, and raises for any other robot. *(Rico,
+   after the demo: "2D cases should probably act the same unless a special argument is
+   passed." First built as automatic, by detection.)*
 
 ## Non-goals and anti-goals
 
@@ -62,10 +65,14 @@ package should make each of those one call, for any robot, and then set them mov
   inf (force). *(call: the threshold)*
 - `manipulability_ellipsoid(J, center=None)`, `force_ellipsoid(J, center=None)`: J any m×n
   block. MR 5.4; notes 5.5.
-- `Robot.manipulability_ellipsoid(theta, kind="linear")`, `Robot.force_ellipsoid(theta,
-  kind="linear")`: centred at the tool (the origin of {b}) in {s} axes. "linear" uses J_b's
-  linear rows, MR's advice (notes 5.5), turned into {s}: R_sb J_bv. "angular" uses J_s's
-  angular rows (= R_sb J_bω). *(call: drawn in {s} so it sits where the tool is)*
+- `Robot.manipulability_ellipsoid(theta, kind="linear", *, planar=False)`,
+  `Robot.force_ellipsoid(...)`: centred at the tool (the origin of {b}) in {s} axes.
+  "linear" uses J_b's linear rows, MR's advice (notes 5.5), turned into {s}: R_sb J_bv.
+  "angular" uses J_s's angular rows (= R_sb J_bω). *(call: drawn in {s} so it sits where the
+  tool is)* A planar arm's is 3D like any other (flat in z, μ1 = ∞); `planar=True` gives the
+  ellipse in the plane from the x and y rows, the notes' 2 × n J(θ) (μ1 = 6.08 for the 2R
+  arm at (0, π/4)), and raises for a robot that is not planar or for kind="angular".
+  `Robot.is_planar()` is the test.
 - `robots.planar_2r(L1=1.0, L2=1.0)`: the notes' 2R arm (sections 5.1 and 5.5) as a Robot
   with joint frames, so the notes' worked numbers are tests: at θ = (0, π/4), J =
   [[−0.7071, −0.7071], [1.7071, 0.7071]], semi-axes 0.341 and 2.073, force 2.932 and 0.482,
@@ -77,9 +84,20 @@ One internal painter computes, for every configuration on a path, the joint fram
 skeleton, J_s, J_b, T_sb, each joint's current axis line (q, ŝ, h from the column; anchored
 at the joint's current origin for a revolute joint), the tool-velocity columns
 c_i = R_sb J_bv[:, i], and the ellipsoids; it fixes the plot limits over the whole path so
-an animation does not jump. The static functions are a one-frame painter. Colours are the
-notes' (skeleton #F78B11, joints #3B83CD, manipulability #C0392B, force #555555 dashed) and
-the per-joint tab10 palette of `draw_robot`.
+an animation does not jump. The static functions are a one-frame painter.
+
+Colours: one per meaning, never one per joint *(Rico, after the demo: the per-joint tab10
+colours "walk over the RGB frame visualization convention", and the orange links / blue
+joints convention made them hard to read; first built with `draw_robot`'s tab10 palette)*.
+Red, green and blue are the frames' x̂, ŷ, ẑ and nothing else. Links #F78B11 and joints
+#3B83CD as in the notes; each joint's axis (a column of J_s) in the joints' blue, as the notes'
+ur5-singular-poses draws them. Velocity #8E44AD purple: the tool-velocity arrows, their
+head-to-tail steps, and the manipulability ellipsoid (the notes use red, but red here is x̂,
+and {b}'s x̂ starts at the tool where the arrows do). Force #555555 dashed. The tool's path
+grey. ṗ black. The matrix black. Labels tell the joints apart: J_si on the axes, numbers (or
+J_i, J_i θ̇_i in 2D, the notes' two-r-arm-jacobian-columns convention) on the arrows. Charts:
+a twist's components in their axis's colour, ω solid and v dashed; joint rates in shades of
+the joints' blue.
 
 `show` items: `skeleton`, `frames` ({s}, and {b} at the tool), `axes` (the current joint
 axes, the columns of J_s; not drawn in 2D, where they point out of the page), `columns`
@@ -87,13 +105,13 @@ axes, the columns of J_s; not drawn in 2D, where they point out of the page), `c
 `path` (the tool's path, for animations).
 
 - `draw_jacobian(robot, theta, *, frame="space", dtheta=None, show=..., matrix=True,
-  planar=None, ax=None, figsize=None, labels=True) -> JacobianDrawing`. frame="body" draws
+  planar=False, ax=None, figsize=None, labels=True) -> JacobianDrawing`. frame="body" draws
   in {b} coordinates and prints J_b; the lines are the same lines. In 2D the matrix is the
   2×n tip Jacobian, the notes' J(θ) of eq. two-r-jacobian. Title gives the rank and says
   "singular" when rank < min(6, n) (rank of the 2×n J in 2D). Returns the columns drawn
   (index, kind, S, q, ŝ, h, tool velocity, artists) for checking by hand.
 - `draw_ellipsoid(robot, theta, *, kind="linear", force=False, show=None, scale=None,
-  force_scale=None, planar=None, ax=None, figsize=None, labels=True) -> EllipsoidDrawing`.
+  force_scale=None, planar=False, ax=None, figsize=None, labels=True) -> EllipsoidDrawing`.
   scale is drawing metres per unit of the ellipsoid (m/s, rad/s); default makes the longest
   semi-axis 0.3 of the robot's reach *(call)*. force_scale has its own default, the longest
   bounded force semi-axis 0.3 of the reach in the median frame *(call, changed after looking:
@@ -102,7 +120,7 @@ axes, the columns of J_s; not drawn in 2D, where they point out of the page), `c
   `kind="angular"` with planar drawing raises with that explanation.
 - `animate_robot(robot, theta_start, theta_end=None, *, path="joint", frames=60, fps=20,
   show=..., kind="linear", force=False, dtheta_scale=None, chart=True, matrix=False,
-  planar=None, view=None, figsize=None) -> Animation`. theta_start with theta_end: path
+  planar=False, view=None, figsize=None) -> Animation`. theta_start with theta_end: path
   "joint" (constant joint rates) or "screw" (constant tool twist, IK seeded from the previous
   frame; raises if IK loses the path). theta_start alone as an (N, n) array plays that path
   (a `joint_trajectory`, an `IKResult.history`). The chart plots the semi-axes against
@@ -137,8 +155,11 @@ frame; a supplied (N, n) path is played as given. Before release every GIF is lo
 ## Delivery
 
 screws 0.8.0: version in `_version.py`, `pyproject.toml`, the README version test.
-`examples/jacobians.py` writes `docs/media/{jacobian_ur5.png, ellipses_2r.png,
-ellipsoid_ur5.png, ellipse_2r.gif, ellipsoid_ur5.gif, paths_ur5.gif}`; a README section.
+`examples/jacobians.py` writes `docs/media/{jacobian_ur5.png, jacobian_2r_dtheta.png,
+ellipses_2r.png, singular_2r.png, ellipsoid_ur5.png, ellipse_2r.gif, ellipsoid_ur5.gif,
+paths_ur5.gif}`. The README section is the demo page Rico saw ("This demo is great. Make it
+part of the documentation / readme"): each picture with the call that drew it under it, the
+numbers block, and a table of the core calls.
 Release is a v0.8.0 tag push (the GitHub Action publishes to PyPI), Rico's to make.
 
 ## Order of work

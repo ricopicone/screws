@@ -197,28 +197,41 @@ class Robot:
         """J_b(theta). MR 5.1.2; notes 5.1."""
         return kin.jacobian_body(self.B, theta)
 
-    def _tool_block(self, theta, kind) -> tuple[np.ndarray, np.ndarray]:
+    def is_planar(self) -> bool:
+        """True when every joint axis is along z and every v lies in the xy plane: the tool
+        point then moves in a plane z = const, and its velocity has two components."""
+        return bool(np.allclose(self.S[:2], 0) and np.allclose(self.S[5], 0))
+
+    def _tool_block(self, theta, kind, planar=False) -> tuple[np.ndarray, np.ndarray]:
         """(the Jacobian block whose ellipsoid is wanted, in {s} axes; the tool position)."""
+        if kind not in ("linear", "angular"):
+            raise ValueError(f'kind must be "linear" or "angular"; got {kind!r}')
         T = self.fk(theta)
+        if planar:
+            if not self.is_planar():
+                raise ValueError(f"{self.name} is not planar: its joint axes are not all along z with v in the xy plane")
+            if kind == "angular":
+                raise ValueError("a planar arm turns its tool about z only: its angular ellipsoid is a segment, not an ellipse")
+            return (T[:3, :3] @ self.jacobian_body(theta)[3:])[:2], T[:2, 3]
         if kind == "linear":  # J_b's linear rows, the velocity of {b}'s origin, turned into {s}
             return T[:3, :3] @ self.jacobian_body(theta)[3:], T[:3, 3]
-        if kind == "angular":
-            return self.jacobian_space(theta)[:3], T[:3, 3]
-        raise ValueError(f'kind must be "linear" or "angular"; got {kind!r}')
+        return self.jacobian_space(theta)[:3], T[:3, 3]
 
-    def manipulability_ellipsoid(self, theta, kind: str = "linear") -> kin.Ellipsoid:
+    def manipulability_ellipsoid(self, theta, kind: str = "linear", *, planar: bool = False) -> kin.Ellipsoid:
         """The tool's manipulability ellipsoid at theta, centred at {b}'s origin, in {s} axes.
 
         kind="linear" uses J_b's linear rows, as MR advises (they give the velocity of a
         point on the tool, J_s's that of the body point at {s}'s origin), turned into {s}:
-        R_sb J_bv. kind="angular" uses J_s's angular rows (= R_sb J_bw). MR 5.4; notes 5.5.
+        R_sb J_bv. kind="angular" uses J_s's angular rows (= R_sb J_bw). A planar arm's is
+        3D like any other, flat in z; planar=True gives the ellipse in the plane instead,
+        from the x and y rows (the notes' 2 x n J(theta)). MR 5.4; notes 5.5.
         """
-        J, p = self._tool_block(theta, kind)
+        J, p = self._tool_block(theta, kind, planar)
         return kin.manipulability_ellipsoid(J, center=p)
 
-    def force_ellipsoid(self, theta, kind: str = "linear") -> kin.Ellipsoid:
+    def force_ellipsoid(self, theta, kind: str = "linear", *, planar: bool = False) -> kin.Ellipsoid:
         """The tool's force ellipsoid at theta (moments for kind="angular"), as above."""
-        J, p = self._tool_block(theta, kind)
+        J, p = self._tool_block(theta, kind, planar)
         return kin.force_ellipsoid(J, center=p)
 
     def ik(self, T, theta0, *, frame: str = "body", **tol) -> kin.IKResult:
