@@ -197,6 +197,30 @@ class Robot:
         """J_b(theta). MR 5.1.2; notes 5.1."""
         return kin.jacobian_body(self.B, theta)
 
+    def _tool_block(self, theta, kind) -> tuple[np.ndarray, np.ndarray]:
+        """(the Jacobian block whose ellipsoid is wanted, in {s} axes; the tool position)."""
+        T = self.fk(theta)
+        if kind == "linear":  # J_b's linear rows, the velocity of {b}'s origin, turned into {s}
+            return T[:3, :3] @ self.jacobian_body(theta)[3:], T[:3, 3]
+        if kind == "angular":
+            return self.jacobian_space(theta)[:3], T[:3, 3]
+        raise ValueError(f'kind must be "linear" or "angular"; got {kind!r}')
+
+    def manipulability_ellipsoid(self, theta, kind: str = "linear") -> kin.Ellipsoid:
+        """The tool's manipulability ellipsoid at theta, centred at {b}'s origin, in {s} axes.
+
+        kind="linear" uses J_b's linear rows, as MR advises (they give the velocity of a
+        point on the tool, J_s's that of the body point at {s}'s origin), turned into {s}:
+        R_sb J_bv. kind="angular" uses J_s's angular rows (= R_sb J_bw). MR 5.4; notes 5.5.
+        """
+        J, p = self._tool_block(theta, kind)
+        return kin.manipulability_ellipsoid(J, center=p)
+
+    def force_ellipsoid(self, theta, kind: str = "linear") -> kin.Ellipsoid:
+        """The tool's force ellipsoid at theta (moments for kind="angular"), as above."""
+        J, p = self._tool_block(theta, kind)
+        return kin.force_ellipsoid(J, center=p)
+
     def ik(self, T, theta0, *, frame: str = "body", **tol) -> kin.IKResult:
         """Numerical inverse kinematics for the goal T from the guess theta0.
 

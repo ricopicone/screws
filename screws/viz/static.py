@@ -289,22 +289,33 @@ def draw_screw(S, *, ax=None, figsize=(6, 6), labels: bool = True) -> ScrewDrawi
     return d
 
 
-def explore(robot: Robot, *, frame: str = "space", show=SHOW_DEFAULT, **kwargs):
-    """Joint sliders in a notebook: redraws draw_robot at the slider angles. Needs ipywidgets."""
+def _slider_ranges(robot: Robot) -> list[tuple[float, float]]:
+    """Each joint's slider range: its limits, else +-pi for a revolute joint and +-1 m for a slide."""
+    if robot.joint_limits is not None:
+        return [(float(lo), float(hi)) for lo, hi in robot.joint_limits]
+    return [(-np.pi, np.pi) if k == "revolute" else (-1.0, 1.0) for k in robot.joint_types]
+
+
+def explore(robot: Robot, *, draw=None, **kwargs):
+    """Joint sliders in a notebook: redraws a drawing at the slider values, by default
+    draw_robot; pass draw=viz.draw_jacobian or viz.draw_ellipsoid to watch the Jacobian or
+    the ellipsoids change instead. kwargs go to the drawing (frame, show, force, ...).
+    Ranges come from joint_limits when the robot has them. Needs ipywidgets."""
     import ipywidgets as widgets
     import matplotlib.pyplot as plt
     from IPython.display import display
 
+    draw = draw_robot if draw is None else draw
     sliders = [
-        widgets.FloatSlider(value=0.0, min=-np.pi, max=np.pi, step=0.01, description=f"θ{i + 1}", readout_format=".2f")
-        for i in range(robot.n)
+        widgets.FloatSlider(value=min(max(0.0, lo), hi), min=lo, max=hi, step=0.01, description=f"θ{i + 1}", readout_format=".2f")
+        for i, (lo, hi) in enumerate(_slider_ranges(robot))
     ]
     out = widgets.Output()
 
     def redraw(*_):
         with out:
             out.clear_output(wait=True)
-            d = draw_robot(robot, [s.value for s in sliders], frame=frame, show=show, **kwargs)
+            d = draw(robot, [s.value for s in sliders], **kwargs)
             plt.show(d.fig)
             plt.close(d.fig)
 
