@@ -253,6 +253,18 @@ class Robot:
         theta = np.asarray(theta, dtype=float)
         return bool(np.all(theta >= self.joint_limits[:, 0]) and np.all(theta <= self.joint_limits[:, 1]))
 
+    def symbolic(self, *, decimals: int | None = None):
+        """This robot as a screws.symbolic.SymbolicRobot, its floats read exactly (needs SymPy).
+
+        robot.symbolic().fk() is T_sb as a formula in theta1 ... thetan; jacobian_space,
+        jacobian_body and the dynamics methods follow. decimals=k rounds the floats to k
+        places first (screws.symbolic.exact), and a robot read from a URDF usually wants it:
+        robots.ur5().symbolic(decimals=6). Notes 4.1, 5.1, 8.3.
+        """
+        from .symbolic import SymbolicRobot
+
+        return SymbolicRobot.from_robot(self, decimals=decimals)
+
     # ----- dynamics ---------------------------------------------------------------------
 
     def _need_inertias(self):

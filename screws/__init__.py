@@ -3,7 +3,8 @@
 ``import screws`` gives every chapter function flat (``screws.exp6``, ``screws.fk_space``),
 MR's CamelCase names as aliases (``screws.FKinSpace is screws.fk_space``), the ``Robot`` class,
 the ``robots`` that ship, the ``urdf`` loader and the ``testing`` helpers. The CoppeliaSim
-bridge is ``screws.coppelia``, imported only on request.
+bridge is ``screws.coppelia``, and the SymPy twins of the chapter functions are
+``screws.symbolic``; both are imported only on request.
 """
 
 from . import dynamics, kinematics, motion, robots, se3, so3, testing, trajectory, urdf, viz
