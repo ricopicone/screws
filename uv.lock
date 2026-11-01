@@ -1679,7 +1679,7 @@ requires-dist = [
     { name = "imageio", marker = "extra == 'video'", specifier = ">=2.31" },
     { name = "imageio-ffmpeg", marker = "extra == 'video'", specifier = ">=0.4" },
     { name = "ipywidgets", marker = "extra == 'plot'", specifier = ">=8" },
-    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.7" },
+    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.9" },
     { name = "numpy", specifier = ">=1.24" },
     { name = "sympy", specifier = ">=1.12" },
 ]
@@ -1690,7 +1690,7 @@ dev = [
     { name = "coppeliasim-zmqremoteapi-client", specifier = "==2.0.4" },
     { name = "imageio", specifier = ">=2.31" },
     { name = "imageio-ffmpeg", specifier = ">=0.4" },
-    { name = "matplotlib", specifier = ">=3.7" },
+    { name = "matplotlib", specifier = ">=3.9" },
     { name = "modern-robotics", specifier = "==1.1.1" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },

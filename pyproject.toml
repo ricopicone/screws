@@ -26,7 +26,7 @@ Changelog = "https://github.com/ricopicone/screws/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 coppelia = ["coppeliasim-zmqremoteapi-client==2.0.4"]
-plot = ["matplotlib>=3.7", "ipywidgets>=8"]
+plot = ["matplotlib>=3.9", "ipywidgets>=8"]
 video = ["imageio>=2.31", "imageio-ffmpeg>=0.4"]
 
 [dependency-groups]
@@ -34,7 +34,7 @@ dev = [
   "pytest>=8",
   "ruff>=0.6",
   "modern_robotics==1.1.1",
-  "matplotlib>=3.7",
+  "matplotlib>=3.9",
   "coppeliasim-zmqremoteapi-client==2.0.4",
   "imageio>=2.31",
   "imageio-ffmpeg>=0.4",

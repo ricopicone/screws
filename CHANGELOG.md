@@ -9,6 +9,11 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
 - CI on macOS and Windows as well as Linux.
 - Project links and classifiers on PyPI.
 
+### Fixed
+- An animation of a body whose faces have unequal numbers of vertices (the screwdriver)
+  could fail with infinite axis limits under matplotlib 3.11, which pads such faces with
+  uninitialized memory and autoscaled on it. The `plot` extra now needs matplotlib 3.9.
+
 ## [0.9.0] - 2026-11-01
 
 ### Added
