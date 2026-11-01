@@ -26,7 +26,7 @@ from ..kinematics import Ellipsoid, force_ellipsoid, manipulability_ellipsoid
 from ..robot import Robot
 from ..se3 import exp6, log6, se3_to_vec, transform_inv
 from .animate import Animation, _finish, _fmt
-from .static import COLOURS, _set_equal
+from .static import COLOURS, _axis, _screw_axes, _set_equal
 
 __all__ = [
     "ColumnDrawing",
@@ -40,9 +40,9 @@ __all__ = [
 ]
 
 AXIS = COLOURS["axis"]  # a joint's axis, in the joints' blue
-VELOCITY = "#8E44AD"  # the velocities the joints give the tool: not x's red, which is at the tool too
-MANIPULABILITY, FORCE = VELOCITY, "#555555"
-PATH = "#8C8C8C"
+VELOCITY = COLOURS["velocity"]  # the velocities the joints give the tool: not x's red, which is at the tool too
+MANIPULABILITY, FORCE = VELOCITY, COLOURS["force"]
+PATH = COLOURS["path"]
 SHOW_JACOBIAN = ("skeleton", "frames", "axes", "columns")
 SHOW_ELLIPSOID = ("skeleton", "frames", "ellipsoid")
 SHOW_ANIMATION = ("skeleton", "frames", "axes", "ellipsoid", "path")
@@ -185,28 +185,21 @@ class _RobotPainter:
     # ----- numbers ---------------------------------------------------------------------
 
     def _pose(self, k) -> _Pose:
-        robot, theta = self.robot, self.thetas[k]
-        F = robot.frames(theta)
-        T = F[-1]
-        ref = np.eye(4) if self.frame == "space" else transform_inv(T)
+        robot, theta, d = self.robot, self.thetas[k], self.d
+        ref, J, origins = _screw_axes(robot, theta, self.frame, "current")  # as draw_robot(axes="current")
+        T = robot.fk(theta)
         R = ref[:3, :3]
-        d = self.d
-
-        def pt(p):
-            return (ref[:3, :3] @ p + ref[:3, 3])[:d]
-
         Js, Jb = robot.jacobian_space(theta), robot.jacobian_body(theta)
-        joints = np.array([pt(f[:3, 3]) for f in F[:-1]])
-        tool, origin = pt(T[:3, 3]), pt(np.zeros(3))
+        joints = origins[:, :d]
+        tool, origin = (R @ T[:3, 3] + ref[:3, 3])[:d], ref[:d, 3]
         skeleton = np.vstack([origin, joints, tool]) if self.known else np.array([origin, tool])
-        J = Js if self.frame == "space" else Jb
         lines = []
         for i in range(robot.n):
-            omega, v = Js[:3, i], Js[3:, i]
+            omega, v = J[:3, i], J[3:, i]
             if robot.joint_types[i] == "prismatic":
-                lines.append((J[:, i], (R @ v)[:d] / np.linalg.norm(v), np.inf))
+                lines.append((J[:, i], v[:d] / np.linalg.norm(v), np.inf))
             else:
-                lines.append((J[:, i], (R @ omega)[:d], float(omega @ v)))
+                lines.append((J[:, i], omega[:d], float(omega @ v)))
         C = (R @ T[:3, :3] @ Jb[3:])[:d]
         block = C if self.kind == "linear" else (R @ Js[:3])[:d]
         pose = _Pose(theta, T, skeleton, joints, lines, C, C if self.planar else J, Js, Jb, tool, ref)
@@ -340,18 +333,12 @@ class _RobotPainter:
     def _axes(self, ax, p):
         L = 0.35 * self.reach
         sub = "s" if self.frame == "space" else "b"
-        colour = AXIS
         for i, ((_, s_hat, h), q) in enumerate(zip(p.lines, p.joints)):
             if self.planar:  # every axis points out of the page: a dot for +z, a cross for -z
                 if self.robot.joint_types[i] == "revolute":
-                    ax.plot(*q, "." if p.Js[2, i] > 0 else "x", color=colour, ms=6, zorder=4)
+                    ax.plot(*q, "." if p.Js[2, i] > 0 else "x", color=AXIS, ms=6, zorder=4)
                 continue
-            a, b = q - L * s_hat, q + L * s_hat
-            ax.plot(*np.array([a, b]).T, "--", color=colour, lw=1.4, zorder=2)
-            if np.isfinite(h):
-                self._arrow(ax, q, 0.5 * L * s_hat, colour, 2.4)
-            if self.labels:
-                ax.text(*b, f"$J_{{{sub}{i + 1}}}$", color=colour, fontsize=11, zorder=6)
+            _axis(ax, q, s_hat, L, arrow=np.isfinite(h), label=f"$J_{{{sub}{i + 1}}}$" if self.labels else None)
 
     def _columns(self, ax, p, dtheta):
         tool = p.tool
@@ -498,8 +485,9 @@ def draw_jacobian(
     """The robot at theta with each column of its Jacobian drawn as what it is.
 
     Column i of J_s(theta) is joint i's screw axis now, S_i carried by the joints inboard of
-    it; it is drawn as a dashed line through the joint in the joints' blue (with its
-    omega-hat for a revolute joint), labelled Js_i. At the tool, an arrow per joint, numbered,
+    it; it is drawn as draw_robot(axes="current") draws it, a dashed line through the joint
+    in the joints' blue (with its omega-hat for a revolute joint), labelled J_si. At the
+    tool, an arrow per joint, numbered,
     gives the velocity of the tool point when that joint alone turns at unit rate,
     R_sb J_bv[:, i]. With dtheta the arrows are scaled by dtheta_i and laid head to tail,
     summing to the tool point's velocity p-dot. frame="body" draws in {b} and prints J_b;

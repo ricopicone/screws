@@ -128,8 +128,10 @@ import screws
 from screws import viz
 
 ur5 = screws.robots.ur5()
+theta = [0.3, -1.1, 1.4, 0.2, 0.9, -0.5]
 viz.draw_robot(ur5)                                   # skeleton, {s}, and S_1 ... S_6 at home
 viz.draw_robot(ur5, frame="body")                     # the same robot seen from {b}: B_1 ... B_6
+viz.draw_robot(ur5, theta, axes="current")            # the axes where theta has carried them: J_s(theta)
 viz.draw_robot(ur5, joints=[2], show=("skeleton", "frames", "axes", "omega", "construction"))
 viz.draw_screw(screws.screw_axis(q=[0.3, 0, 0], s_hat=[0, 0, 1], h=0.05))   # one axis by itself
 viz.explore(ur5)                                      # joint sliders, in a notebook
@@ -145,6 +147,29 @@ v = −ω̂×q + hω̂ is something you can look at. The body-frame view redraws
 which is why the B_i differ from the S_i. Every drawing returns the vectors it drew, so a
 figure can be checked by hand. Needs `screws[plot]`.
 
+**Where the axes are now.** The default, `axes="home"`, draws the axes at home even when the
+arm is posed at θ: they are the S_i of the product of exponentials. `axes="current"` draws
+each axis where the joints inboard of it have carried it, which is column i of J_s(θ) (of
+J_b(θ) with `frame="body"`), labelled J_si. With `"construction"` the same drawing builds that
+column, J_si = (ω_i, −ω_i × q_i) for a revolute joint through q_i, as MR 5.1.1 builds J_s:
+
+![The UR5 at θ with joint 3's current axis J_s3, and v_3 built from the joint's position q_3 at θ](docs/media/axes_current_ur5.png)
+
+```python
+viz.draw_robot(ur5, theta, axes="current", joints=[2], show=("skeleton", "frames", "axes", "omega", "construction"))
+```
+
+`viz.draw_jacobian` is this drawing with the velocities the joints give the tool, and the
+matrix beside it; see [Jacobians and manipulability ellipsoids](#jacobians-and-manipulability-ellipsoids).
+
+**Colours.** Every picture the package draws uses one colour per meaning, never one per
+joint. Red, green and blue are a frame's x̂, ŷ and ẑ and nothing else. Links are orange and
+joints blue, as in the notes, and a screw axis, with its ω̂, is the joints' blue. Purple is
+velocity: v (its pieces −ω̂×q and hω̂ a lighter purple), the velocities of points in a screw
+motion, the velocities the joints give the tool, and the manipulability ellipsoid that collects
+them. Grey is a position or a path, and the force ellipsoid is grey and dashed. Labels tell
+the joints apart.
+
 ## Watching a screw motion
 
 ```python
@@ -159,7 +184,7 @@ viz.animate_twist([0, 0, 1, 0, -0.5, 0.1], duration=4).save("mine.gif")   # any 
 
 A twist is a motion before it is a six-vector. `animate_twist` plays a constant twist on a
 body: the screw axis drawn as a line with ŝ and the pitch h, one point's path traced (a
-helix, or a circle at zero pitch), and red arrows for the velocities ω × p + v of a few
+helix, or a circle at zero pitch), and purple arrows for the velocities ω × p + v of a few
 points. `animate_screw` sweeps a screw axis over θ and prints the line read off it,
 q = ω × v and h = ωᵀv, with T(θ) changing alongside.
 
@@ -211,15 +236,9 @@ theta = [0.3, -1.1, 1.4, 0.2, 0.9, -0.5]
 theta0 = [0, -1.2, 1.5, -1.6, -1.57, 0]
 ```
 
-**Colours.** One per meaning, never one per joint. Red, green and blue are the frames' x̂, ŷ
-and ẑ and nothing else. Links are orange and joints blue, as in the notes, and a joint's axis
-is drawn in the joints' blue. Purple is velocity: the velocities the joints give the tool, and
-the manipulability ellipsoid that collects them. The force ellipsoid is grey and dashed.
-Labels tell the joints apart.
-
 **Each column as what it is.** Column i of J_s(θ) is joint i's screw axis *now*, S_i carried
-there by the joints inboard of it. At home it is the S_i that `draw_robot` draws
-(J_s(0) = [S_1 ⋯ S_n]).
+there by the joints inboard of it: the axis `draw_robot(ur5, theta, axes="current")` draws.
+At home it is the S_i (J_s(0) = [S_1 ⋯ S_n]). The colours are the package's, above.
 
 ![The UR5 with each joint's current screw axis dashed in blue, the tool velocities they give as numbered purple arrows, and J_s(θ) beside it](docs/media/jacobian_ur5.png)
 

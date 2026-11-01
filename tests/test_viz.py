@@ -118,4 +118,58 @@ def test_axis_labels_sit_at_the_far_end_of_the_axis_lines():
     d = viz.draw_robot(ur5, axis_length=0.5)
     texts = {t.get_text(): np.array(t.get_position_3d()) for t in d.ax.texts}
     j = d.joints[0]
-    assert np.allclose(texts["S1"], j.q + 0.5 * j.omega, atol=0.06)
+    assert np.allclose(texts[r"$\mathcal{S}_{1}$"], j.q + 0.5 * j.omega, atol=0.06)
+
+
+POSE = [0.3, -1.1, 1.4, 0.2, 0.9, -0.5]
+
+
+def test_current_axes_are_the_columns_of_J_s_through_the_joints_at_theta():
+    ur5 = robots.ur5()
+    d = viz.draw_robot(ur5, POSE, axes="current", show=("skeleton", "axes", "omega", "construction"))
+    Js, F = ur5.jacobian_space(POSE), ur5.frames(POSE)
+    assert d.axes == "current" and len(d.joints) == 6
+    for i, j in enumerate(d.joints):
+        assert np.allclose(np.r_[j.omega, j.v], Js[:, i])
+        assert np.allclose(j.q, F[i][:3, 3])  # through the joint where it is now
+        assert np.allclose(j.cross, -np.cross(j.omega, j.q)) and np.allclose(j.cross + j.pitch_term, j.v)
+    assert {f"$J_{{s{i}}}$" for i in range(1, 7)} <= {t.get_text() for t in d.ax.texts}
+    dj = viz.draw_jacobian(ur5, POSE)  # the Jacobian picture draws the same lines through the same points
+    for j, c in zip(d.joints, dj.columns):
+        assert np.allclose(c.S, np.r_[j.omega, j.v]) and np.allclose(c.q, j.q)
+    rrp = robots.rrp()  # a prismatic column: the slide's direction, carried by the joints before it
+    j = viz.draw_robot(rrp, [0.4, 0.7, 0.2], axes="current", joints=[2]).joints[0]
+    assert np.allclose(np.r_[j.omega, j.v], rrp.jacobian_space([0.4, 0.7, 0.2])[:, 2])
+
+
+def test_current_axes_in_the_body_frame_are_J_b_seen_from_the_tool():
+    ur5 = robots.ur5()
+    d = viz.draw_robot(ur5, POSE, frame="body", axes="current")
+    Jb, F = ur5.jacobian_body(POSE), ur5.frames(POSE)
+    T_bs = se3.transform_inv(F[-1])
+    assert np.allclose(d.skeleton[-1], 0)  # the tool at {b}'s origin, wherever theta put it
+    for i, j in enumerate(d.joints):
+        assert np.allclose(np.r_[j.omega, j.v], Jb[:, i])
+        assert np.allclose(j.q, (T_bs @ F[i])[:3, 3])
+
+
+def test_at_home_the_current_axes_are_the_home_axes():
+    ur5 = robots.ur5()
+    for frame in ("space", "body"):
+        home, now = viz.draw_robot(ur5, frame=frame), viz.draw_robot(ur5, frame=frame, axes="current")
+        for a, b in zip(home.joints, now.joints):
+            assert np.allclose(a.omega, b.omega) and np.allclose(a.v, b.v) and np.allclose(a.q, b.q)
+    with pytest.raises(ValueError, match="home"):
+        viz.draw_robot(ur5, axes="now")
+
+
+def test_red_green_and_blue_are_the_frames_and_nothing_else():
+    from matplotlib.colors import to_hex
+
+    c = {k: v.lower() for k, v in viz.COLOURS.items()}
+    assert not {c["x"], c["y"], c["z"]} & {v for k, v in c.items() if k not in ("x", "y", "z")}
+    d = viz.draw_robot(robots.ur5(), joints=[1, 2], show=("axes", "omega", "construction"))
+    for j in d.joints:  # one colour per meaning, never one per joint
+        assert to_hex(j.axis_line.get_color()) == c["axis"]
+        assert to_hex(j.omega_arrow.get_color()[0]) == c["axis"]
+        assert to_hex(j.v_arrow.get_color()[0]) == c["velocity"]

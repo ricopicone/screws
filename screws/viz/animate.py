@@ -158,8 +158,8 @@ class _Painter:
         self._triad(ax, T, L * b_triad, "{b}")
         if axis:
             self._axis(ax)
-        ax.plot(*self.path.T, ":", color=COLOURS["pitch"], lw=1.0, alpha=0.6)
-        ax.plot(*self.path[: i + 1].T, "-", color=COLOURS["pitch"], lw=2.0)
+        ax.plot(*self.path.T, ":", color=COLOURS["path"], lw=1.0, alpha=0.8)
+        ax.plot(*self.path[: i + 1].T, "-", color=COLOURS["path"], lw=2.0)
         if points:
             P = self._points(T)
             vel = point_velocity(sc.S, P)
@@ -227,8 +227,9 @@ def animate_twist(
     """A body moving under the constant twist V = (omega, v), written in {s}, for duration
     seconds: e^{[V] t} T0. Pass a Scene (door(), drawer(), screwdriver()) to play its motion
     in duration seconds, V = S thetadot. The screw axis is dashed with s-hat and the pitch,
-    one point's path is traced (a helix; a circle at zero pitch), and the red arrows are
-    the velocities omega x p + v of the marked points, drawn arrow_scale seconds long.
+    one point's path is traced in grey (a helix; a circle at zero pitch), and the purple
+    arrows are the velocities omega x p + v of the marked points, drawn arrow_scale seconds
+    long. Colours as everywhere in screws.viz: purple a velocity, red, green, blue a frame.
     MR 3.3.2; notes 3.10."""
     import matplotlib.pyplot as plt
 
@@ -344,7 +345,7 @@ def compare_frames(scene, *, frames: int = 80, fps: int = 20, view=None, figsize
             foot = painter.q + ((m - painter.q) @ painter.s_hat) * painter.s_hat
             axl.plot(*np.array([foot, m]).T, "--", color="grey", lw=1.2)
             foot0 = painter.q + ((0 - painter.q) @ painter.s_hat) * painter.s_hat
-            axl.plot(*np.array([foot0, marker0]).T, ":", color=COLOURS["v"], lw=1.0)
+            axl.plot(*np.array([foot0, marker0]).T, ":", color=COLOURS["q"], lw=1.0)
         axl.scatter(*m, color="grey", s=25, depthshade=False)
         painter._arrow(axl, m, k * point_velocity(sc.S, m), "grey", 1.6)
         axl.scatter(0, 0, 0, color=COLOURS["v"], s=25, depthshade=False)

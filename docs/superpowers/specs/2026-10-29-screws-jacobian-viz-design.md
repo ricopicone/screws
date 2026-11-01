@@ -99,6 +99,23 @@ J_i, J_i θ̇_i in 2D, the notes' two-r-arm-jacobian-columns convention) on the 
 a twist's components in their axis's colour, ω solid and v dashed; joint rates in shades of
 the joints' blue.
 
+One way of drawing an axis, for every picture *(Rico said "Yes, go ahead" to this before
+0.8.0, after the point-1 discussion: the Jacobian's columns and `draw_robot`'s screw axes
+are the same lines, drawn by two pieces of code)*. `screws/viz/static.py` holds
+`_screw_axes(robot, theta, frame, at)` (at="home": the S_i or B_i through the joints at home;
+at="current": the columns of J_s(θ) or J_b(θ) through the joints at θ, in {s} or {b} at θ)
+and `_axis` (the dashed line in the joints' blue, ω̂ arrow, label at the far end).
+`draw_robot` gains `axes="home"` (default, as before) or `"current"`, labelled J_si; its
+`"construction"` then builds J_si = (ω_i, −ω_i × q_i) through the joint at θ, MR 5.1.1.
+`draw_jacobian`'s painter uses both, so it is `draw_robot(axes="current")` plus the tool
+arrows and the matrix. `draw_screw` uses `_axis` too. The colour rule became the package's:
+`COLOURS` gains velocity, path and force; v purple with its pieces a lighter purple
+(#B585CA), q and paths grey, tab10 gone; `animate_twist`, `animate_screw` and
+`compare_frames` draw point velocities, v_s and v_b purple (were red) and the path grey (was
+purple). This changes released pictures: the README's `viz_ur5.png` and screw-motion GIFs
+(regenerated); the notes' 3.10 GIFs change only when regenerated, and their text names no
+colour but the grey marker.
+
 `show` items: `skeleton`, `frames` ({s}, and {b} at the tool), `axes` (the current joint
 axes, the columns of J_s; not drawn in 2D, where they point out of the page), `columns`
 (the c_i at the tool), `velocity` (ṗ = Σ c_i θ̇_i, needs θ̇), `ellipsoid`, `force`,
@@ -157,7 +174,8 @@ frame; a supplied (N, n) path is played as given. Before release every GIF is lo
 screws 0.8.0: version in `_version.py`, `pyproject.toml`, the README version test.
 `examples/jacobians.py` writes `docs/media/{jacobian_ur5.png, jacobian_2r_dtheta.png,
 ellipses_2r.png, singular_2r.png, ellipsoid_ur5.png, ellipse_2r.gif, ellipsoid_ur5.gif,
-paths_ur5.gif}`. The README section is the demo page Rico saw ("This demo is great. Make it
+paths_ur5.gif}`; `examples/screw_axes.py` writes `viz_ur5.png` and `axes_current_ur5.png`,
+and `examples/screw_motions.py` the screw-motion GIFs in the new colours. The README section is the demo page Rico saw ("This demo is great. Make it
 part of the documentation / readme"): each picture with the call that drew it under it, the
 numbers block, and a table of the core calls.
 Release is a v0.8.0 tag push (the GitHub Action publishes to PyPI), Rico's to make.
