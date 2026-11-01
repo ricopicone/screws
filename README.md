@@ -102,9 +102,9 @@ out theta and the joint variables are the symbols `theta1 ... thetan` (`ur5.thet
 `thetadot1 ...` and `thetaddot1 ...` in the dynamics). `simplify=False` skips the
 simplification, which is most of the time on a six-joint arm.
 
-`robot.symbolic()` reads a robot's floats exactly: a float becomes the decimal it prints as,
-or the fraction, multiple of pi or surd it is to the last bit (`np.pi / 2` is `pi/2`). A URDF
-that rounds pi/2 leaves a few millionths where zeros were meant, and read exactly they never
+`robot.symbolic()` reads a robot's floats as `sympy.nsimplify(x, rational=True)` does, as
+the decimals they print as; where you mean pi/2, pass `sympy.pi / 2`, not `np.pi / 2`. A
+URDF that rounds pi/2 leaves a few millionths where zeros were meant, and these never
 cancel, so `symbolic()` warns; `decimals=` rounds first. With
 `screws.robots.ur5().symbolic(decimals=6)`, `gravity_forces()` is the UR5's g(theta), three
 short nonzero entries, in about twenty seconds (`sympy.N(g, 4)` shows it in decimals).

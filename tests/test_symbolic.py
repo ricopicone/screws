@@ -50,20 +50,18 @@ def _two_link():
 def test_floats_are_read_as_the_numbers_they_print_as():
     assert sym.exact(0.425) == sp.Rational(17, 40)
     assert sym.exact(0.089159) == sp.Rational(89159, 1000000)
-    assert sym.exact(-0.10915) == sp.Rational(-2183, 20000)  # sympy.nsimplify makes a surd of it
+    assert sym.exact(-0.10915) == sp.Rational(-2183, 20000)
     assert sym.exact(8.393) == sp.Rational(8393, 1000)
     assert sym.exact(0.1 + 0.2) == sp.Rational(3, 10)
+    assert sym.exact(1 / 3) == sp.Rational(1, 3)
     assert sym.exact(3) == 3 and isinstance(sym.exact(3), sp.Integer)
 
 
-def test_floats_that_are_simple_numbers_to_the_last_bit():
-    assert sym.exact(1 / 3) == sp.Rational(1, 3)
-    assert sym.exact(np.pi / 2) == sp.pi / 2
-    assert sym.exact(-2 * np.pi / 3) == -2 * sp.pi / 3
-    assert sym.exact(np.cos(np.pi / 4)) == sp.sqrt(2) / 2
-    assert sym.exact(np.sqrt(3) / 2) == sp.sqrt(3) / 2
-    assert sym.exact(np.cos(np.pi / 2)) == 0  # 6e-17 of round-off is zero
-    assert sym.exact(1.5708) == sp.Rational(3927, 2500)  # not pi/2: it is not, to the last bit
+def test_floats_are_read_as_sympy_reads_them():
+    for x in (0.425, 1 / 3, np.pi / 2, np.cos(np.pi / 4), np.cos(np.pi / 2), -3.67320510e-06):
+        assert sym.exact(x) == sp.nsimplify(x, rational=True)
+    assert sym.exact(np.pi / 2) != sp.pi / 2  # write sympy.pi / 2 for that
+    assert sym.exact(np.cos(np.pi / 2)) != 0  # 6e-17 of round-off is kept; decimals= drops it
 
 
 def test_decimals_rounds_first():

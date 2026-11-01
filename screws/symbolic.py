@@ -9,11 +9,10 @@ returns SymPy matrices; a vector is a column. Two differences:
 - theta may be left out (or None): the joint variables are then the real symbols
   theta1 ... thetan, and dtheta, ddtheta in the dynamics thetadot1 ..., thetaddot1 ...
   (see joint_symbols).
-- Numbers are read exactly. A Python float becomes the decimal it prints as (0.425 is
-  17/40), unless it is, to the last bit, a simple fraction or a simple fraction of pi,
-  sqrt(2) or sqrt(3) (1/3, np.pi / 2, np.cos(np.pi / 4) is sqrt(2)/2); round-off below
-  1e-12 is zero. So a Robot's float arrays give clean formulas. SymPy objects pass
-  through untouched (a sympy.Float stays a float).
+- A Python float is read as sympy.nsimplify(x, rational=True) reads it: as the decimal
+  it prints as (0.425 is 17/40, 0.1 + 0.2 is 3/10), so a Robot's float arrays give clean
+  formulas. np.pi / 2 is read as 1.5707963267949, so write sympy.pi / 2 where pi/2 is
+  meant: SymPy objects pass through untouched (a sympy.Float stays a float).
 
 Results are simplified (sympy.simplify, entry by entry) unless simplify=False, or by the
 function given instead (simplify=sympy.trigsimp is sometimes quicker). The kinematics of a
@@ -80,22 +79,17 @@ __all__ = [
     "velocity_quadratic_forces",
 ]
 
-_CHOP = 1e-12
-_NICE = (sp.Integer(1), sp.pi, sp.sqrt(2), sp.sqrt(3))
+_UNIT = 1e-9  # |omega|^2 this close to 1 is a unit axis; see _angle
 
 
 def _float(x: float, decimals: int | None):
     if not math.isfinite(x):
         raise ValueError(f"{x} has no exact value")
+    # Round, then convert: nsimplify's own tolerance= takes the nearest fraction of bounded
+    # denominator, which makes the URDF's 0.8172500003 638412/781171 rather than 3269/4000.
     if decimals is not None:
         x = round(x, decimals)
-    if abs(x) < _CHOP:
-        return sp.Integer(0)
-    for base in _NICE:
-        c = sp.Rational(x / float(base)).limit_denominator(1000)
-        if abs(float(c * base) - x) <= 4 * np.finfo(float).eps * abs(x):
-            return c * base
-    return sp.Rational(repr(x))
+    return sp.nsimplify(x, rational=True)
 
 
 def _scalar(x, decimals: int | None = None):
@@ -111,12 +105,12 @@ def _scalar(x, decimals: int | None = None):
 def exact(a, *, decimals: int | None = None):
     """a as an exact SymPy object: a scalar, or a Matrix for anything array-like.
 
-    A float becomes the decimal it prints as (0.1 is 1/10), unless it is, to the last bit,
-    a fraction with denominator up to 1000, or such a fraction of pi, sqrt(2) or sqrt(3)
-    (0.8660254037844386 is sqrt(3)/2); below 1e-12 it is zero. decimals=k rounds every
-    float to k places first: a URDF that writes pi/2 as 1.5708 leaves cos 1.5708 =
+    A float is read by sympy.nsimplify(x, rational=True), as the decimal it prints as (0.1
+    is 1/10, 1/3 is 1/3, np.pi / 2 is 15707963267949/10000000000000). decimals=k rounds
+    every float to k places first: a URDF that writes pi/2 as 1.5708 leaves cos 1.5708 =
     -3.7e-6 where 0 was meant, and decimals=4 drops it. SymPy objects are left as they
-    are. A 1-D sequence becomes a column. Addition, not in the MR library.
+    are, so sympy.pi / 2 stays pi/2. A 1-D sequence becomes a column. Addition, not in
+    the MR library.
     """
     if isinstance(a, sp.MatrixBase):
         return sp.Matrix(a).applyfunc(lambda x: _scalar(x, decimals))
@@ -193,12 +187,14 @@ def _angle(w: sp.Matrix):
 
     The exponentials use only even functions of theta (sin theta / theta, cos theta, ...),
     so either root serves, and the absolute values SymPy puts round sqrt(theta^2) can go.
-    An axis read from floats is a unit vector only to round-off; a factor within 1e-12 of
-    1 in w . w is that round-off, and is dropped as smaller numbers are by exact.
+    An axis read from floats is a unit vector only to round-off, and nsimplify can make it
+    worse (it reads 0.9999999999932537 as 1 but keeps the -3.67e-6 beside it); a factor
+    within 1e-9 of 1 in w . w is that round-off, and is dropped, which also keeps the root
+    of a forty-digit integer, which numpy cannot take, out of the formulas.
     """
     n2 = w.dot(w)
     c, rest = n2.as_coeff_Mul()
-    if c != 1 and c.is_Rational and abs(c - 1) < _CHOP:
+    if c != 1 and c.is_Rational and abs(c - 1) < _UNIT:
         n2 = rest
     r = _root(n2)
     if r is None:  # e.g. theta^2 (cos^2 a + sin^2 a), whose root is plain only once simplified
@@ -593,7 +589,7 @@ class SymbolicRobot:
     gravity vector in {s}, (0, 0, -g) with g a positive symbol unless given. Every method
     takes the joint values as optional (theta1 ... thetan when left out) and simplify=.
 
-    Build one from a numerical robot with Robot.symbolic() (its floats read exactly), or by
+    Build one from a numerical robot with Robot.symbolic() (its floats read as decimals), or by
     hand with from_screw_axes. MR 4.1, 8.3; notes chapter 4.
     """
 
@@ -627,7 +623,7 @@ class SymbolicRobot:
 
     @classmethod
     def from_robot(cls, robot, *, decimals: int | None = None) -> SymbolicRobot:
-        """The symbolic twin of a screws.Robot, its floats read exactly (see exact for
+        """The symbolic twin of a screws.Robot, its floats read as decimals (see exact for
         decimals); Robot.symbolic calls this.
 
         Warns when, without decimals, the kinematics hold a number below 1e-5 that is not
@@ -640,7 +636,7 @@ class SymbolicRobot:
 
         if decimals is None:
             geometry = [robot.M, robot.S, *(robot.link_frames or ())]
-            tiny = [x for a in geometry for x in np.ravel(a) if _CHOP <= abs(x) < 1e-5]
+            tiny = [x for a in geometry for x in np.ravel(a) if 0 < abs(x) < 1e-5]
             if tiny:
                 warnings.warn(
                     f"{robot.name}: {tiny[0]:.1e} in its kinematics is probably round-off (a "
