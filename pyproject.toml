@@ -1,7 +1,7 @@
 [project]
 name = "screws"
 version = "0.9.0"
-description = "Screw-theory robotics: the Modern Robotics library, reorganised, with a CoppeliaSim bridge"
+description = "Robotics in Python built on screw theory: kinematics, dynamics, formulas, pictures and a CoppeliaSim bridge"
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
