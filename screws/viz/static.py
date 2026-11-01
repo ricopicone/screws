@@ -366,7 +366,7 @@ def explore(robot: Robot, *, draw=None, **kwargs):
         with out:
             out.clear_output(wait=True)
             d = draw(robot, [s.value for s in sliders], **kwargs)
-            plt.show(d.fig)
+            display(d.fig)  # into the Output widget; plt.show takes no figure
             plt.close(d.fig)
 
     for s in sliders:
