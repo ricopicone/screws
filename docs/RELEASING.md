@@ -11,8 +11,8 @@
 3. Bump the version in `screws/_version.py`, `pyproject.toml` and `CITATION.cff` (they must
    agree; `tests/test_readme_table.py` pins the release number), set `date-released` in
    `CITATION.cff`, and turn the changelog's "Unreleased" into the release's heading.
-4. If `screws/aliases.py` changed, regenerate the README table with
-   `uv run python tools/print_alias_table.py` and paste it under "Names".
+4. If `screws/aliases.py` changed, regenerate the table with
+   `uv run python tools/print_alias_table.py` and paste it into `docs/guide/names.md`.
 5. If the `modern_robotics` dev pin changed, re-harvest the docstring examples:
    `uv run python tools/harvest_mr_examples.py`.
 6. Commit, then tag and push the tag: `git tag v<version> && git push origin v<version>`.

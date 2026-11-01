@@ -21,6 +21,7 @@ classifiers = [
 
 [project.urls]
 Homepage = "https://github.com/ricopicone/screws"
+Documentation = "https://ricopicone.github.io/screws/"
 Issues = "https://github.com/ricopicone/screws/issues"
 Changelog = "https://github.com/ricopicone/screws/blob/main/CHANGELOG.md"
 
@@ -38,6 +39,12 @@ dev = [
   "coppeliasim-zmqremoteapi-client==2.0.4",
   "imageio>=2.31",
   "imageio-ffmpeg>=0.4",
+]
+# the documentation site: `uv run --group docs mkdocs serve`
+docs = [
+  "mkdocs>=1.6",
+  "mkdocs-material>=9.5",
+  "mkdocstrings[python]>=0.26",
 ]
 
 [build-system]

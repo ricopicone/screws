@@ -185,6 +185,7 @@ class Scene:
         self._tracked.extend(int(h) for h in handles)
 
     def untrack(self, *handles: int) -> None:
+        """Stop tracking these objects, so the Scene leaves them when it exits."""
         for h in handles:
             if int(h) in self._tracked:
                 self._tracked.remove(int(h))

@@ -1,0 +1,97 @@
+site_name: screws
+site_description: Robotics in Python built on screw theory
+site_url: https://ricopicone.github.io/screws/
+repo_url: https://github.com/ricopicone/screws
+repo_name: ricopicone/screws
+edit_uri: edit/main/docs/
+copyright: MIT licence. Portions derived from the Modern Robotics code library.
+
+# the design specs and plans under docs/superpowers are the project's history, not its manual
+exclude_docs: |
+  superpowers/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Dark
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Light
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  # Contributing and Changelog include the files at the repository root
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+  - pymdownx.arithmatex:
+      generic: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3.2.2/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths: [.]
+          options:
+            # the docstrings are prose in MR's notation, with no Args/Returns sections to parse
+            docstring_style: null
+            show_root_heading: false
+            show_source: true
+            members_order: source
+            separate_signature: true
+            show_signature_annotations: false
+            filters: ["!^_"]
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Guide:
+      - Kinematics and the Robot class: guide/kinematics.md
+      - Dynamics and trajectories: guide/dynamics.md
+      - Check your own code: guide/checking.md
+      - "Formulas: screws.symbolic": guide/formulas.md
+      - Pictures of the screw axes: guide/pictures/screw-axes.md
+      - Watching a screw motion: guide/pictures/screw-motions.md
+      - Jacobians and ellipsoids: guide/pictures/jacobians.md
+      - CoppeliaSim: guide/coppelia.md
+      - MR's names: guide/names.md
+  - API reference:
+      - screws.so3: reference/so3.md
+      - screws.se3: reference/se3.md
+      - screws.kinematics: reference/kinematics.md
+      - screws.motion: reference/motion.md
+      - screws.dynamics: reference/dynamics.md
+      - screws.trajectory: reference/trajectory.md
+      - screws.robot: reference/robot.md
+      - screws.urdf: reference/urdf.md
+      - screws.robots: reference/robots.md
+      - screws.testing: reference/testing.md
+      - screws.symbolic: reference/symbolic.md
+      - screws.viz: reference/viz.md
+      - screws.coppelia: reference/coppelia.md
+  - Project:
+      - Contributing: contributing.md
+      - Changelog: changelog.md
+      - Releasing: RELEASING.md

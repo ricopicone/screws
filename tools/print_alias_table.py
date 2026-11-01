@@ -1,4 +1,4 @@
-"""Print the MR-name to screws-name table as Markdown, for the README."""
+"""Print the MR-name to screws-name table as Markdown, for docs/guide/names.md."""
 
 from screws.aliases import ALIASES
 
