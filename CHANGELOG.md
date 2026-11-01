@@ -2,6 +2,13 @@
 
 Every release of `screws`, newest first. Versions are git tags, and a tag publishes to PyPI.
 
+## Unreleased
+
+### Added
+- The documentation site, <https://ricopicone.github.io/screws/>: the README's sections
+  as guide pages, and an API reference from the docstrings. The README is now the landing
+  page.
+
 ## [0.9.1] - 2026-11-01
 
 ### Added
