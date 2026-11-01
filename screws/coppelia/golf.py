@@ -8,6 +8,7 @@ that addresses the ball, a straight stroke along the target line, IK for every w
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -107,18 +108,31 @@ class Green:
         self.scene.sim.removeObjects(self.handles())
 
 
+_BOLD_FONTS = (
+    "/System/Library/Fonts/Supplemental/Arial Bold.ttf",  # macOS
+    "/Library/Fonts/Arial Bold.ttf",
+    str(Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts" / "arialbd.ttf"),  # Windows
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",  # Linux
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+)
+
+
 def _font(size: int):
+    """A bold font, size pixels high: the system's Arial or DejaVu Bold, else matplotlib's
+    DejaVu Sans Bold, else Pillow's own scalable font. Pillow's load_default() with no size is
+    a 10-pixel bitmap, which left the flag's text a speck on Windows."""
     from PIL import ImageFont
 
-    for candidate in (
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
-        "/Library/Fonts/Arial Bold.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
-    ):
+    for candidate in _BOLD_FONTS:
         if Path(candidate).exists():
             return ImageFont.truetype(candidate, size)
-    return ImageFont.load_default()
+    try:
+        from matplotlib import font_manager
+
+        bold = font_manager.FontProperties(family="DejaVu Sans", weight="bold")
+        return ImageFont.truetype(font_manager.findfont(bold, fallback_to_default=False), size)
+    except (ImportError, ValueError):  # no matplotlib, or no DejaVu in it
+        return ImageFont.load_default(size)
 
 
 def camera_yaw(position, look_at) -> float:

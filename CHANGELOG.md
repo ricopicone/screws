@@ -13,6 +13,9 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
 - An animation of a body whose faces have unequal numbers of vertices (the screwdriver)
   could fail with infinite axis limits under matplotlib 3.11, which pads such faces with
   uninitialized memory and autoscaled on it. The `plot` extra now needs matplotlib 3.9.
+- `golf.text_image` drew the flag's text 10 pixels high on Windows, where none of its font
+  paths existed. It now finds Arial Bold there, and otherwise falls back to matplotlib's
+  DejaVu Sans Bold or Pillow's scalable font.
 
 ## [0.9.0] - 2026-11-01
 

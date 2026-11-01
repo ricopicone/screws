@@ -139,6 +139,22 @@ def test_stroke_path_is_straight_through_the_ball_at_constant_speed():
     assert all(np.allclose(T[:3, :3], path[0][:3, :3]) for T in path)
 
 
+@pytest.mark.parametrize("source", ["system", "matplotlib", "pillow"])
+def test_the_flag_text_is_large_whatever_fonts_the_machine_has(source, tmp_path, monkeypatch):
+    from matplotlib import font_manager
+    from PIL import Image
+
+    if source != "system":
+        monkeypatch.setattr(golf, "_BOLD_FONTS", ())
+    if source == "pillow":
+        def no_dejavu(*args, **kwargs):
+            raise ValueError("no DejaVu")
+        monkeypatch.setattr(font_manager, "findfont", no_dejavu)
+    im = Image.open(golf.text_image(tmp_path / "flag.png", "SMU")).convert("RGB")
+    white = np.all(np.asarray(im) == 255, axis=-1).mean()
+    assert white > 0.05  # letters, not a speck: Pillow's 10-pixel default font gave 0
+
+
 def test_text_image_and_seal_image_write_pngs_in_brand_colours(tmp_path):
     from PIL import Image
 
