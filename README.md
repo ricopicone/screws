@@ -1,9 +1,29 @@
 # screws
 
-Screw-theory robotics in Python, after Lynch and Park, *Modern Robotics* (MR).
-`screws` is the MR code library reorganised: the same mathematics under
-snake_case names, MR's own names kept as aliases, a `Robot` class, a URDF
-loader, robots that ship ready to use, and a bridge to CoppeliaSim.
+Robotics in Python, built on screw theory: every rigid-body motion is a screw motion, the
+exponential of a twist, and an open chain is a product of such exponentials. Kinematics,
+Jacobians and dynamics all follow from that. The notation is that of Lynch and Park,
+*Modern Robotics* (MR).
+
+- **The mathematics.** Rotations and rigid-body motions with their exponentials and
+  logarithms; twists, wrenches and adjoints; forward and inverse kinematics; space and body
+  Jacobians; manipulability and force ellipsoids; Newton-Euler dynamics; trajectories.
+- **Robots.** A `Robot` class that carries M, the screw axes and the link inertias, a URDF
+  loader, and three robots ready to use: a UR5, an RRP arm and a planar 2R arm.
+- **Formulas.** `screws.symbolic` does the same computations in SymPy, so the product of
+  exponentials, the Jacobians and the equations of motion come out in the joint variables.
+- **Pictures.** `screws.viz` draws a robot with its screw axes, animates screw motions, and
+  shows Jacobians and manipulability ellipsoids, still or while the robot moves, with joint
+  sliders in a notebook.
+- **Simulation.** `screws.coppelia` drives CoppeliaSim: read a robot off a scene, command it
+  by position, velocity or torque, log and plot the run, and record a movie.
+- **Checks.** `screws.testing` compares your own implementation of a function with the
+  library's.
+
+`screws` started from the MR code library, and all of that library is still here: each
+function under a snake_case name, with MR's name kept as an alias
+(`screws.FKinSpace is screws.fk_space`). The tests run every example in MR's docstrings
+through those aliases.
 
 ## Install
 
