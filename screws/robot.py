@@ -254,7 +254,7 @@ class Robot:
         return bool(np.all(theta >= self.joint_limits[:, 0]) and np.all(theta <= self.joint_limits[:, 1]))
 
     def symbolic(self, *, decimals: int | None = None):
-        """This robot as a screws.symbolic.SymbolicRobot, its floats read as decimals (needs SymPy).
+        """This robot as a screws.symbolic.SymbolicRobot, its floats read as decimals.
 
         robot.symbolic().fk() is T_sb as a formula in theta1 ... thetan; jacobian_space,
         jacobian_body and the dynamics methods follow. decimals=k rounds the floats to k

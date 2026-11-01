@@ -10,13 +10,12 @@ loader, robots that ship ready to use, and a bridge to CoppeliaSim.
 One or the other:
 
 ```
-uv add screws                 # the mathematics only; numpy is the sole dependency
+uv add screws                 # the mathematics only; numpy and SymPy are the dependencies
 uv add "screws[coppelia]"     # the same, plus the CoppeliaSim ZMQ remote API client
 ```
 
 Extras for the bridge: `screws[plot]` (matplotlib, for `Log.plot`) and `screws[video]`
 (imageio and ffmpeg, for `Recorder`). `uv add "screws[coppelia,plot,video]"` takes all three.
-`screws[symbolic]` adds SymPy, for the formulas of `screws.symbolic`.
 
 ## Four lines
 
@@ -75,7 +74,8 @@ are MR chapter 8 as free functions too, with the robot's `link_frames`, `link_in
 ## Formulas: `screws.symbolic`
 
 The same functions in SymPy, so the product of exponentials, the Jacobians and the
-dynamics come out as formulas in the joint variables (`uv add "screws[symbolic]"`):
+dynamics come out as formulas in the joint variables. `screws.symbolic` is imported the
+first time it is used, so a plain `import screws` stays quick:
 
 ```python
 import sympy as sp

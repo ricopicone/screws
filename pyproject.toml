@@ -6,12 +6,11 @@ readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "Rico Picone" }]
-dependencies = ["numpy>=1.24"]
+dependencies = ["numpy>=1.24", "sympy>=1.12"]
 
 [project.optional-dependencies]
 coppelia = ["coppeliasim-zmqremoteapi-client==2.0.4"]
 plot = ["matplotlib>=3.7", "ipywidgets>=8"]
-symbolic = ["sympy>=1.12"]
 video = ["imageio>=2.31", "imageio-ffmpeg>=0.4"]
 
 [dependency-groups]
@@ -23,7 +22,6 @@ dev = [
   "coppeliasim-zmqremoteapi-client==2.0.4",
   "imageio>=2.31",
   "imageio-ffmpeg>=0.4",
-  "sympy>=1.12",
 ]
 
 [build-system]

@@ -1644,6 +1644,7 @@ dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "numpy", version = "2.5.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
+    { name = "sympy" },
 ]
 
 [package.optional-dependencies]
@@ -1654,9 +1655,6 @@ plot = [
     { name = "ipywidgets" },
     { name = "matplotlib", version = "3.10.9", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "matplotlib", version = "3.11.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
-]
-symbolic = [
-    { name = "sympy" },
 ]
 video = [
     { name = "imageio" },
@@ -1673,7 +1671,6 @@ dev = [
     { name = "modern-robotics" },
     { name = "pytest" },
     { name = "ruff" },
-    { name = "sympy" },
 ]
 
 [package.metadata]
@@ -1684,9 +1681,9 @@ requires-dist = [
     { name = "ipywidgets", marker = "extra == 'plot'", specifier = ">=8" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.7" },
     { name = "numpy", specifier = ">=1.24" },
-    { name = "sympy", marker = "extra == 'symbolic'", specifier = ">=1.12" },
+    { name = "sympy", specifier = ">=1.12" },
 ]
-provides-extras = ["coppelia", "plot", "symbolic", "video"]
+provides-extras = ["coppelia", "plot", "video"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1697,7 +1694,6 @@ dev = [
     { name = "modern-robotics", specifier = "==1.1.1" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.6" },
-    { name = "sympy", specifier = ">=1.12" },
 ]
 
 [[package]]

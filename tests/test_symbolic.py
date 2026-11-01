@@ -7,8 +7,7 @@ import warnings
 import modern_robotics.core as mr_core
 import numpy as np
 import pytest
-
-sp = pytest.importorskip("sympy")
+import sympy as sp
 
 import screws
 import screws.symbolic as sym
@@ -328,9 +327,15 @@ def _run(code: str) -> subprocess.CompletedProcess:
     return subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
 
 
-def test_import_without_sympy_says_what_to_install():
-    r = _run("import sys; sys.modules['sympy'] = None; import screws.symbolic")
-    assert r.returncode != 0 and "screws[symbolic]" in r.stderr
+def test_screws_symbolic_is_imported_on_first_use():
+    r = _run(
+        "import sys, screws; assert 'sympy' not in sys.modules; "
+        "assert screws.symbolic.fk_space and 'sympy' in sys.modules; "
+        "from screws import *; from screws import symbolic; assert symbolic is screws.symbolic"
+    )
+    assert r.returncode == 0, r.stderr
+    with pytest.raises(AttributeError, match="no attribute 'nonesuch'"):
+        screws.nonesuch  # noqa: B018
 
 
 def test_import_screws_does_not_import_sympy():

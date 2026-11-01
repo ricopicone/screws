@@ -1,7 +1,7 @@
 """Symbolic twins of the chapter functions, in SymPy: the product of exponentials, the
 Jacobians, the adjoint and Newton-Euler dynamics as formulas in the joint variables.
 
-``import screws.symbolic as sym`` (needs SymPy: ``uv add "screws[symbolic]"``). Each
+``import screws.symbolic as sym``, or just ``screws.symbolic``, imported on first use. Each
 function has the name and the arguments of its numerical twin (``sym.fk_space(M, S,
 theta)`` beside ``screws.fk_space(M, S, theta)``, MR's names too: ``sym.FKinSpace``) and
 returns SymPy matrices; a vector is a column. Two differences:
@@ -34,13 +34,7 @@ from dataclasses import dataclass, field, replace
 from functools import cached_property
 
 import numpy as np
-
-try:
-    import sympy as sp
-except ImportError as e:  # pragma: no cover - exercised by a test that hides sympy
-    raise ImportError(
-        'screws.symbolic needs SymPy: uv add "screws[symbolic]" (or pip install sympy)'
-    ) from e
+import sympy as sp
 
 from .aliases import ALIASES as _MR_ALIASES
 
