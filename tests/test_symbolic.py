@@ -346,7 +346,7 @@ def test_import_screws_does_not_import_sympy():
 def test_the_readme_section_runs():
     from pathlib import Path
 
-    readme = (Path(__file__).parents[1] / "README.md").read_text()
+    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
     section = readme[readme.index("## Formulas") : readme.index("## CoppeliaSim")]
     code = "\n".join(re.findall(r"```python\n(.*?)```", section, re.DOTALL))
     ns: dict = {}

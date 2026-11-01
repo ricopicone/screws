@@ -527,6 +527,14 @@ Where a screws function's signature matches MR's, the alias **is** that function
 MR's `(thetalist, success)` tuple; the primaries return an `IKResult` with the iteration
 history. No deprecation warnings, ever.
 
+## Help, contributing and citing
+
+Questions and bug reports go in the [issues](https://github.com/ricopicone/screws/issues);
+how to report one well, and how to propose a change, is in
+[CONTRIBUTING.md](CONTRIBUTING.md). What each release changed is in
+[CHANGELOG.md](CHANGELOG.md). To cite `screws`, use [CITATION.cff](CITATION.cff), or
+GitHub's "Cite this repository" button, which reads it.
+
 ## Licence
 
 MIT. Portions derived from the Modern Robotics code library, copyright 2018 Huan Weng,

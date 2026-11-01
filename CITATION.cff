@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use screws in teaching or research, please cite it as below."
+type: software
+title: "screws: robotics in Python built on screw theory"
+abstract: >-
+  Robotics in Python, built on screw theory and written in the notation of Lynch and Park,
+  Modern Robotics: rigid-body motions, forward and inverse kinematics, Jacobians,
+  manipulability and force ellipsoids, dynamics and trajectories, with the same computations
+  as SymPy formulas, pictures of screw axes and Jacobians, and a bridge to the CoppeliaSim
+  simulator.
+authors:
+  - family-names: Picone
+    given-names: Rico A. R.
+    orcid: "https://orcid.org/0000-0002-5091-5175"
+    affiliation: "Saint Martin's University"
+repository-code: "https://github.com/ricopicone/screws"
+license: MIT
+version: 0.9.0
+date-released: 2026-11-01
+keywords:
+  - robotics
+  - screw theory
+  - product of exponentials
+  - kinematics
+  - dynamics
+  - education
+  - SymPy
+  - CoppeliaSim
