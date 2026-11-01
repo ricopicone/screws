@@ -40,6 +40,28 @@ def test_every_entry_point_renders_every_scene(make, entry, tmp_path):
     assert out.stat().st_size > 1000
 
 
+def test_a_body_with_unequal_faces_draws_whatever_matplotlib_pads_them_with(monkeypatch, tmp_path):
+    # The screwdriver's quads, hexagon and octagon are a ragged list; matplotlib 3.11 pads it
+    # with np.empty, and on CI that memory once held a number near the largest negative float,
+    # so the margin added to the limits overflowed to -inf. Pad with that number on purpose.
+    from mpl_toolkits.mplot3d import art3d
+
+    class Uninitialised:
+        def __getattr__(self, name):
+            return getattr(np, name)
+
+        @staticmethod
+        def empty(shape, dtype=float, **kwargs):
+            out = np.zeros(shape, dtype)
+            if out.dtype.kind == "f":
+                out.fill(np.finfo(out.dtype).min)
+            return out
+
+    monkeypatch.setattr(art3d, "np", Uninitialised())
+    out = viz.animate_twist(viz.screwdriver(), duration=0.4, fps=5).save(tmp_path / "x.gif", dpi=30)
+    assert out.stat().st_size > 1000
+
+
 def test_animate_screw_ends_at_the_exponential():
     sc = viz.door()
     a = viz.animate_screw(sc, frames=5)

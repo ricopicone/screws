@@ -149,7 +149,10 @@ class _Painter:
             for f, c in zip(m.faces, m.face_colours()):
                 polys.append(m.vertices[f])
                 colours.append(to_rgba(c, m.alpha))
-        ax.add_collection3d(Poly3DCollection(polys, facecolors=colours, edgecolors=(0, 0, 0, 0.35), linewidths=0.4, zorder=1))
+        body = Poly3DCollection(polys, facecolors=colours, edgecolors=(0, 0, 0, 0.35), linewidths=0.4, zorder=1)
+        # No autoscaling: _set_equal fixes the limits below. matplotlib 3.11 pads faces of
+        # unequal length (the screwdriver's) with np.empty and autoscales on that memory.
+        ax.add_collection3d(body, autolim=False)
         L = 0.14 * self.size
         self._triad(ax, np.eye(4), L, "{s}", letters=True)
         if sc.goal is not None:

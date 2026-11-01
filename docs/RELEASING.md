@@ -8,8 +8,9 @@
    (`SCREWS_COPPELIASIM_PORT=<port>` for an instance started with `-GzmqRemoteApi.rpcPort=<port>`).
    If a run is killed mid-way the simulation can be left waiting on a dead stepping
    client; `Scene.start()` stops such a simulation first, so a rerun recovers by itself.
-3. Bump the version in `screws/_version.py` and `pyproject.toml` (they must agree;
-   `tests/test_readme_table.py` pins the release number).
+3. Bump the version in `screws/_version.py`, `pyproject.toml` and `CITATION.cff` (they must
+   agree; `tests/test_readme_table.py` pins the release number), set `date-released` in
+   `CITATION.cff`, and turn the changelog's "Unreleased" into the release's heading.
 4. If `screws/aliases.py` changed, regenerate the README table with
    `uv run python tools/print_alias_table.py` and paste it under "Names".
 5. If the `modern_robotics` dev pin changed, re-harvest the docstring examples:
@@ -20,4 +21,7 @@
    It uses the `PYPI_API_TOKEN` repository secret when set, else PyPI trusted publishing
    (register the workflow as a publisher for `screws` on pypi.org, environment `pypi`).
    Fallback by hand: `uv build && uvx twine upload dist/*` (`uv publish` ignores `~/.pypirc`).
-7. Watch it: `gh run watch`. Then pin the new version in the course repo.
+7. Watch it: `gh run watch`. Then make a GitHub release of the tag, its notes the changelog
+   section: `gh release create v<version> --verify-tag --title v<version> --notes-file <file>`.
+   Zenodo archives each GitHub release (not each tag) and gives it a DOI.
+8. Pin the new version in the course repo.

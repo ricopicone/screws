@@ -7,10 +7,26 @@ license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "Rico Picone" }]
 dependencies = ["numpy>=1.24", "sympy>=1.12"]
+keywords = ["robotics", "screw theory", "product of exponentials", "kinematics", "dynamics", "Modern Robotics"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Topic :: Education",
+  "Topic :: Scientific/Engineering :: Mathematics",
+]
+
+[project.urls]
+Homepage = "https://github.com/ricopicone/screws"
+Issues = "https://github.com/ricopicone/screws/issues"
+Changelog = "https://github.com/ricopicone/screws/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 coppelia = ["coppeliasim-zmqremoteapi-client==2.0.4"]
-plot = ["matplotlib>=3.7", "ipywidgets>=8"]
+plot = ["matplotlib>=3.9", "ipywidgets>=8"]
 video = ["imageio>=2.31", "imageio-ffmpeg>=0.4"]
 
 [dependency-groups]
@@ -18,7 +34,7 @@ dev = [
   "pytest>=8",
   "ruff>=0.6",
   "modern_robotics==1.1.1",
-  "matplotlib>=3.7",
+  "matplotlib>=3.9",
   "coppeliasim-zmqremoteapi-client==2.0.4",
   "imageio>=2.31",
   "imageio-ffmpeg>=0.4",
