@@ -1,5 +1,7 @@
 # screws
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23873253.svg)](https://doi.org/10.5281/zenodo.23873253)
+
 Robotics in Python, built on screw theory: every rigid-body motion is a screw motion, the
 exponential of a twist, and an open chain is a product of such exponentials. Kinematics,
 Jacobians and dynamics all follow from that. The notation is that of Lynch and Park,
@@ -66,7 +68,9 @@ Questions and bug reports go in the [issues](https://github.com/ricopicone/screw
 how to report one well, and how to propose a change, is in
 [CONTRIBUTING.md](https://github.com/ricopicone/screws/blob/main/CONTRIBUTING.md). What each release changed is in
 [CHANGELOG.md](https://github.com/ricopicone/screws/blob/main/CHANGELOG.md). To cite `screws`, use [CITATION.cff](https://github.com/ricopicone/screws/blob/main/CITATION.cff), or
-GitHub's "Cite this repository" button, which reads it.
+GitHub's "Cite this repository" button, which reads it. Zenodo archives every release:
+the DOI [10.5281/zenodo.23873253](https://doi.org/10.5281/zenodo.23873253) stands for `screws` as a whole and leads to
+the latest version, and each version has a DOI of its own on that page.
 
 ## Licence
 

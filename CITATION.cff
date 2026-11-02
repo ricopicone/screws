@@ -14,6 +14,8 @@ authors:
     orcid: "https://orcid.org/0000-0002-5091-5175"
     affiliation: "Saint Martin's University"
 repository-code: "https://github.com/ricopicone/screws"
+# the concept DOI: every version of screws, resolving to the latest
+doi: 10.5281/zenodo.23873253
 license: MIT
 version: 0.9.1
 date-released: 2026-11-01

@@ -1,5 +1,7 @@
 # screws
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23873253.svg)](https://doi.org/10.5281/zenodo.23873253)
+
 Robotics in Python, built on screw theory: every rigid-body motion is a screw motion, the
 exponential of a twist, and an open chain is a product of such exponentials. Kinematics,
 Jacobians and dynamics all follow from that. The notation is that of Lynch and Park,
@@ -46,3 +48,10 @@ result = ur5.ik(T, theta0=[0.1, -1.4, 0.1, 0.1, 1.4, 0.1])   # result.theta, res
   [Jacobians and manipulability ellipsoids](guide/pictures/jacobians.md).
 - [CoppeliaSim](guide/coppelia.md): driving the simulator, and a UR5 that putts.
 - [MR's names](guide/names.md) beside the `screws` names, and the [API reference](reference/so3.md).
+
+## Citing
+
+Use [CITATION.cff](https://github.com/ricopicone/screws/blob/main/CITATION.cff), or GitHub's
+"Cite this repository" button, which reads it. Zenodo archives every release: the DOI
+[10.5281/zenodo.23873253](https://doi.org/10.5281/zenodo.23873253) stands for `screws` as a whole and leads to the
+latest version, and each version has a DOI of its own on that page.

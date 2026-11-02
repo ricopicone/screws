@@ -8,6 +8,8 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
 - The documentation site, <https://ricopicone.github.io/screws/>: the README's sections
   as guide pages, and an API reference from the docstrings. The README is now the landing
   page.
+- A DOI for `screws`, [10.5281/zenodo.23873253](https://doi.org/10.5281/zenodo.23873253), from Zenodo's archive of the
+  0.9.1 release: a badge on the README and the docs home, and the number in `CITATION.cff`.
 
 ## [0.9.1] - 2026-11-01
 

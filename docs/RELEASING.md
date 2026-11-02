@@ -23,5 +23,7 @@
    Fallback by hand: `uv build && uvx twine upload dist/*` (`uv publish` ignores `~/.pypirc`).
 7. Watch it: `gh run watch`. Then make a GitHub release of the tag, its notes the changelog
    section: `gh release create v<version> --verify-tag --title v<version> --notes-file <file>`.
-   Zenodo archives each GitHub release (not each tag) and gives it a DOI.
+   Zenodo archives each GitHub release (not each tag) and gives it a DOI of its own. The
+   concept DOI in the README and `CITATION.cff`, 10.5281/zenodo.23873253, stays the same and
+   resolves to the newest, so nothing in the repo changes for it.
 8. Pin the new version in the course repo.
