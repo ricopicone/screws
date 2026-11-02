@@ -22,6 +22,12 @@ Jacobians and dynamics all follow from that. The notation is that of Lynch and P
 - **Checks.** `screws.testing` compares your own implementation of a function with the
   library's.
 
+[![A UR5 in CoppeliaSim, driven by screws, swings a putter through a golf ball and sinks the putt](https://ricopicone.github.io/screws/media/putt.gif)](https://ricopicone.github.io/screws/examples/)
+
+A UR5 sinks a putt in CoppeliaSim, driven through `screws.coppelia`. The package's own
+pictures, of screw axes, screw motions, Jacobians and manipulability ellipsoids, are on the
+**[Examples](https://ricopicone.github.io/screws/examples/)** page, each with the lines that draw it.
+
 `screws` started from the MR code library, and all of that library is still here: each
 function under a snake_case name, with MR's name kept as an alias
 (`screws.FKinSpace is screws.fk_space`). The tests run every example in MR's docstrings
@@ -53,6 +59,7 @@ result = ur5.ik(T, theta0=[0.1, -1.4, 0.1, 0.1, 1.4, 0.1])   # result.theta, res
 
 The guide and the API reference are at <https://ricopicone.github.io/screws/>:
 
+- **[Examples](https://ricopicone.github.io/screws/examples/)**: what the package draws, with the code under each picture
 - [Kinematics and the Robot class](https://ricopicone.github.io/screws/guide/kinematics/), [dynamics and trajectories](https://ricopicone.github.io/screws/guide/dynamics/),
   and [checking your own code](https://ricopicone.github.io/screws/guide/checking/) against the library
 - [Formulas](https://ricopicone.github.io/screws/guide/formulas/): the same computations in SymPy

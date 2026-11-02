@@ -10,6 +10,14 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
   page.
 - A DOI for `screws`, [10.5281/zenodo.23873253](https://doi.org/10.5281/zenodo.23873253), from Zenodo's archive of the
   0.9.1 release: a badge on the README and the docs home, and the number in `CITATION.cff`.
+- An [Examples](https://ricopicone.github.io/screws/examples/) page: nine of the package's
+  pictures and animations, each with the lines that draw it, linked first from the README
+  and the docs home.
+  The README shows the UR5 putt again.
+
+### Changed
+- `docs/media/putt.gif` is made from `putt.mp4` with ffmpeg: 557 KB instead of 5.7 MB, and
+  15 frames a second instead of 10.
 
 ## [0.9.1] - 2026-11-01
 
