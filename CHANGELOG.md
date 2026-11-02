@@ -2,7 +2,7 @@
 
 Every release of `screws`, newest first. Versions are git tags, and a tag publishes to PyPI.
 
-## Unreleased
+## [0.10.0] - 2026-11-01
 
 ### Added
 - The documentation site, <https://ricopicone.github.io/screws/>: the README's sections
@@ -137,6 +137,7 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
   implementation against the library's.
 - `screws.coppelia`: `Scene`, `Arm` and `Log` over CoppeliaSim's ZMQ remote API.
 
+[0.10.0]: https://github.com/ricopicone/screws/compare/v0.9.1...v0.10.0
 [0.9.1]: https://github.com/ricopicone/screws/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/ricopicone/screws/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/ricopicone/screws/compare/v0.7.0...v0.8.0
