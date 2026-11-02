@@ -104,7 +104,7 @@ class EllipsoidDrawing:
     force: Ellipsoid | None
     scale: float  # drawing metres per unit of semi-axis (m/s, rad/s)
     force_scale: float
-    clipped: bool  # some semi-axis was longer than the plot and was cut short
+    clipped: bool  # some semi-axis reaches past the frame, an unbounded one included, and is cut there
 
 
 @dataclass
@@ -173,14 +173,18 @@ class _RobotPainter:
         top = max((float(np.max(p.manip.radii)) for p in self.poses), default=0.0)
         self.scale = float(scale) if scale is not None else (0.3 * self.reach / top if top > 0 else 1.0)
         # the force ellipsoid's own units: its longest bounded semi-axis 0.3 of the reach in a
-        # typical frame (the median), so the spikes near a singularity are cut short, not the rest
+        # typical frame (the median), so the spikes near a singularity do not shrink the rest
         tops = [float(np.max(r[np.isfinite(r)], initial=0.0)) for r in (p.force.radii for p in self.poses)]
         ftop = float(np.median(tops)) if tops else 0.0
         if force_scale is not None:
             self.force_scale = float(force_scale)
         else:
             self.force_scale = 0.3 * self.reach / ftop if ftop > 0 else self.scale
-        self.cap = 0.9 * self.reach  # a drawn semi-axis longer than this is cut short and said so
+        # Every ellipsoid is drawn at its true size. The frame holds an ellipsoid's semi-axes only
+        # up to these lengths: beyond them, and an unbounded axis always, it runs out of the frame.
+        # The force ellipsoid's is 1.5 times its typical size, so its spikes do not zoom out the rest.
+        self.cap = 0.9 * self.reach
+        self.force_cap = min(self.cap, 1.5 * ftop * self.force_scale) if ftop > 0 else self.cap
         cmax = max(float(np.linalg.norm(p.C, axis=0).max()) for p in self.poses) or 1.0
         self.column_scale = 0.5 * self.reach / cmax
         if self.dthetas is not None:
@@ -215,11 +219,36 @@ class _RobotPainter:
             pose.velocity = C @ self.dthetas[k]
         return pose
 
-    def _drawn(self, e: Ellipsoid, scale) -> tuple[np.ndarray, np.ndarray]:
-        """(drawn semi-axes, which were cut short), inf drawn at the cap."""
-        r = np.where(np.isinf(e.radii), np.inf, e.radii * scale)
-        cut = r > self.cap
-        return np.minimum(r, self.cap), cut
+    def _drawn(self, e: Ellipsoid, scale) -> np.ndarray:
+        """The drawn semi-axes: true size, an unbounded one (and any longer) at far, which is
+        so far past the frame that what shows of the ellipsoid there is its unbounded shape."""
+        return np.minimum(np.where(np.isinf(e.radii), np.inf, e.radii * scale), self.far)
+
+    def _framed(self, e: Ellipsoid, scale, cap) -> np.ndarray:
+        """The semi-axes as far as the frame holds them."""
+        return np.minimum(np.where(np.isinf(e.radii), np.inf, e.radii * scale), cap)
+
+    @property
+    def box(self) -> tuple[np.ndarray, np.ndarray]:
+        """The frame, (lo, hi): the limits _finish_axes sets."""
+        lo, hi = self.limits.min(axis=0), self.limits.max(axis=0)
+        if self.planar:
+            pad = 0.08 * float((hi - lo).max())
+            return lo - pad, hi + pad
+        c, r = (lo + hi) / 2, max(float((hi - lo).max()) / 2, 0.1) + 0.05 * self.reach  # as _set_equal
+        return c - r, c + r
+
+    @property
+    def far(self) -> float:
+        lo, hi = self.box
+        return 10 * float(np.linalg.norm(hi - lo))
+
+    def _runs_out(self, e: Ellipsoid, scale) -> bool:
+        """Whether a semi-axis of e reaches past the frame."""
+        lo, hi = self.box
+        r = self._drawn(e, scale)
+        ends = np.vstack([e.center + (e.axes * r).T, e.center - (e.axes * r).T])
+        return bool(((ends < lo - 1e-9) | (ends > hi + 1e-9)).any())
 
     def _limits(self) -> np.ndarray:
         pts, L = [], 0.35 * self.reach
@@ -232,9 +261,12 @@ class _RobotPainter:
             if "axes" in self.show and not self.planar:
                 for (_, s_hat, _), q in zip(p.lines, p.joints):
                     pts += [q[None] - L * s_hat, q[None] + L * s_hat]
-            for e, sc, item in ((p.manip, self.scale, "ellipsoid"), (p.force, self.force_scale, "force")):
+            for e, sc, cap, item in (
+                (p.manip, self.scale, self.cap, "ellipsoid"),
+                (p.force, self.force_scale, self.force_cap, "force"),
+            ):
                 if item in self.show:
-                    r, _ = self._drawn(e, sc)
+                    r = self._framed(e, sc, cap)
                     pts += [e.center + (e.axes * r).T, e.center - (e.axes * r).T]
             if "columns" in self.show:
                 if self.dthetas is not None:
@@ -366,36 +398,41 @@ class _RobotPainter:
         self._arrow(ax, tool, tail - tool, "black", 2.6, label)
 
     def _ellipsoid(self, ax, e: Ellipsoid, scale, colour, dashed):
-        r, cut = self._drawn(e, scale)
+        """At its true size, cut by the frame. An unbounded axis is drawn far past the frame, so
+        what shows is the limit the growing ellipsoid reaches: two lines along the lost
+        direction in the plane, a cylinder in space. That axis is dotted and marked ∞ at the edge."""
+        r = self._drawn(e, scale)
         unbounded = np.isinf(e.radii)
         ls = "--" if dashed else "-"
-        finite = ~unbounded
-        shown = Ellipsoid(e.center, e.axes, e.eigenvalues, np.where(finite, r, 0.0), e.kind)
-        if self.planar:
-            if finite.all():
-                ax.plot(*shown.outline(160).T, ls, color=colour, lw=1.6, zorder=3)
-            else:  # the bounded section: a segment along the finite axis
-                u = e.axes[:, finite][:, 0] * r[finite][0] if finite.any() else np.zeros(2)
-                ax.plot(*np.array([e.center - u, e.center + u]).T, ls, color=colour, lw=1.6, zorder=3)
-        elif finite.all():
+        shown = Ellipsoid(e.center, e.axes, e.eigenvalues, r, e.kind)
+        lo, hi = self.box
+        if self.planar:  # matplotlib cuts what runs out of the frame
+            ax.plot(*shown.outline(720).T, ls, color=colour, lw=1.6, zorder=3)
+        elif dashed:
+            from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+            a, b = _clip_segments(*_wireframe(shown), lo, hi)
+            wire = Line3DCollection(np.stack([a, b], axis=1), colors=colour, linewidths=0.4, alpha=0.4, zorder=3)
+            ax.add_collection3d(wire)
+        else:
             X, Y, Z = shown.surface(28)
-            if dashed:
-                ax.plot_wireframe(X, Y, Z, color=colour, lw=0.4, alpha=0.4, rstride=4, cstride=4, zorder=3)
-            else:
-                ax.plot_surface(X, Y, Z, color=colour, alpha=0.22, linewidth=0, shade=True, zorder=3)
-        else:  # the bounded cross-section through the finite axes
-            t = np.linspace(0, 2 * np.pi, 120)
-            A = e.axes[:, finite] * r[finite]
-            ring = np.vstack([np.cos(t), np.sin(t)])[: A.shape[1]]
-            pts = e.center + (A @ ring).T
-            ax.plot(*pts.T, ls, color=colour, lw=1.4, zorder=3)
+            outside = np.zeros(X.shape, bool)
+            for c, (l, h) in zip((X, Y, Z), zip(lo, hi)):
+                outside |= (c < l) | (c > h)
+            if outside.any():  # mplot3d does not cut at the frame; leave out what is past it
+                X, Y, Z = (np.where(outside, np.nan, c) for c in (X, Y, Z))
+            ax.plot_surface(X, Y, Z, color=colour, alpha=0.22, linewidth=0, shade=True, zorder=3)
         for k in range(len(r)):  # the principal semi-axes
+            if r[k] <= 0:
+                continue
             u = e.axes[:, k] * r[k]
-            style = ":" if (unbounded[k] or cut[k]) else ls
-            if r[k] > 0:
-                ax.plot(*np.array([e.center - u, e.center + u]).T, style, color=colour, lw=1.1, zorder=3)
-            if (unbounded[k] or cut[k]) and self.labels:
-                ax.text(*(e.center + 1.04 * u), "∞" if unbounded[k] else "…", color=colour, fontsize=11, zorder=6)
+            a, b = _clip_segments((e.center - u)[None], (e.center + u)[None], lo, hi)
+            if not len(a):
+                continue
+            ax.plot(*np.array([a[0], b[0]]).T, ":" if unbounded[k] else ls, color=colour, lw=1.1, zorder=3)
+            if unbounded[k] and self.labels:  # at the edge, where the axis leaves the frame
+                inward = 0.05 * float((hi - lo).max()) * e.axes[:, k]
+                ax.text(*(b[0] - inward), "∞", color=colour, fontsize=11, zorder=6)
 
 
 # ----- the matrix beside the robot ------------------------------------------------------
@@ -439,6 +476,35 @@ def _joint_shades(n) -> list:
 
     base = np.array(mcolors.to_rgb(AXIS))
     return [tuple(map(float, 1 - (1 - base) * f if f <= 1 else base * (2 - f))) for f in np.linspace(0.45, 1.45, n)]
+
+
+def _wireframe(e: Ellipsoid, lines: int = 7, n: int = 240) -> tuple[np.ndarray, np.ndarray]:
+    """A 3D ellipsoid's wireframe as segments (starts, ends): `lines` meridians and `lines`
+    rings, the meridians along its longest axis, so a long one reads as a cylinder."""
+    order = np.argsort(e.radii)  # the longest last, as the pole
+    A = e.axes[:, order] * e.radii[order]
+    s = np.linspace(0, np.pi, n)
+    curves = [np.stack([np.cos(u) * np.sin(s), np.sin(u) * np.sin(s), np.cos(s)]) for u in np.linspace(0, 2 * np.pi, lines + 1)[:-1]]
+    t = np.linspace(0, 2 * np.pi, n)
+    curves += [np.stack([np.cos(t) * np.sin(w), np.sin(t) * np.sin(w), np.full(n, np.cos(w))]) for w in np.linspace(0, np.pi, lines + 2)[1:-1]]
+    pts = [e.center + (A @ c).T for c in curves]
+    return np.vstack([p[:-1] for p in pts]), np.vstack([p[1:] for p in pts])
+
+
+def _clip_segments(a, b, lo, hi) -> tuple[np.ndarray, np.ndarray]:
+    """The parts of the segments a[i] -> b[i] inside the box lo <= x <= hi (Liang-Barsky)."""
+    a, b = np.asarray(a, float), np.asarray(b, float)
+    d = b - a
+    t0, t1 = np.zeros(len(a)), np.ones(len(a))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        for k in range(a.shape[1]):
+            for p, q in ((-d[:, k], a[:, k] - lo[k]), (d[:, k], hi[k] - a[:, k])):
+                t = q / p
+                t0 = np.where(p < 0, np.maximum(t0, t), t0)
+                t1 = np.where(p > 0, np.minimum(t1, t), t1)
+                t1 = np.where((p == 0) & (q < 0), -1.0, t1)  # parallel to this side and outside it
+    keep = t0 < t1
+    return a[keep] + t0[keep, None] * d[keep], a[keep] + t1[keep, None] * d[keep]
 
 
 def _rank(p: _Pose, planar) -> tuple[int, bool]:
@@ -558,9 +624,10 @@ def draw_ellipsoid(
     from J_s's angular rows. scale is drawing metres per unit of semi-axis (m/s, or rad/s);
     the default makes the longest semi-axis 0.3 of the robot's reach. force_scale has its own
     default, the same rule for the force ellipsoid; pass force_scale=scale to draw both at one
-    scale, as the notes do. A force ellipsoid at a singularity is unbounded along the
-    lost direction: its bounded section is drawn and that axis is dotted and marked ∞; a
-    semi-axis longer than the plot is cut short and marked …. The title gives the semi-axes
+    scale, as the notes do. Ellipsoids are drawn at their true size, and the frame does not
+    grow to hold a long one: it runs out of the frame. A force ellipsoid at a singularity is
+    unbounded along the lost direction, so it runs out on both sides, two lines in the plane
+    or a cylinder in space; that axis is dotted and marked ∞. The title gives the semi-axes
     and mu1, mu2, mu3. For a chain mixing revolute and prismatic joints the semi-axes mix
     units and no unit is printed (notes 5.5). Every robot is drawn in 3D, where a planar
     arm's ellipsoid is flat and its mu are infinite; planar=True draws it flat, the ellipse of
@@ -587,9 +654,9 @@ def draw_ellipsoid(
     if force:
         title += f"\nforce semi-axes {_radii_text(p.force, _units(robot, kind, True))}"
     painter.draw(ax, 0, title=title)
-    clipped = bool(painter._drawn(p.manip, painter.scale)[1].any())
+    clipped = painter._runs_out(p.manip, painter.scale)
     if force:
-        clipped |= bool(painter._drawn(p.force, painter.force_scale)[1][np.isfinite(p.force.radii)].any())
+        clipped |= painter._runs_out(p.force, painter.force_scale)
     return EllipsoidDrawing(
         fig, ax, theta, p.T, kind, painter.planar, p.manip, p.force if force else None, painter.scale, painter.force_scale, clipped
     )

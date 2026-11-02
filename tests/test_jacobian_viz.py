@@ -103,13 +103,23 @@ def test_draw_ellipsoid_3d_is_the_robots_ellipsoid():
     assert np.allclose(ang.manipulability.radii, ur5.manipulability_ellipsoid(UR5_THETA, kind="angular").radii)
 
 
-def test_singular_force_ellipse_is_marked_unbounded_not_drawn_finite():
+def test_singular_force_ellipse_runs_out_of_the_frame_marked_unbounded():
     d = viz.draw_ellipsoid(robots.planar_2r(), [0.3, 0.0], force=True, planar=True)
     assert np.isinf(d.force.radii).any() and d.manipulability.singular
-    texts = [t.get_text() for t in d.ax.texts]
-    assert "∞" in texts
-    lo, hi = d.ax.get_xlim()
-    assert hi - lo < 10  # the plot was not stretched to hold an infinite ellipse
+    texts = [t for t in d.ax.texts if t.get_text() == "∞"]
+    assert texts and d.clipped
+    (x0, x1), (y0, y1) = d.ax.get_xlim(), d.ax.get_ylim()
+    assert x1 - x0 < 10  # the plot was not stretched to hold an infinite ellipse
+    x, y = texts[0].get_position()
+    assert x0 < x < x1 and y0 < y < y1  # the mark is at the edge, inside the frame
+    # what shows of it is its limit: two lines along the arm, 1/sqrt(lambda) either side
+    outline = max(d.ax.lines, key=lambda line: len(line.get_xdata()))
+    pts = np.column_stack([outline.get_xdata(), outline.get_ydata()])
+    inside = pts[(pts[:, 0] > x0) & (pts[:, 0] < x1) & (pts[:, 1] > y0) & (pts[:, 1] < y1)]
+    along = d.force.axes[:, np.isinf(d.force.radii)][:, 0]
+    across = (inside - d.force.center) @ np.array([-along[1], along[0]])
+    width = d.force_scale * d.force.radii[np.isfinite(d.force.radii)][0]
+    assert np.allclose(np.abs(across), width, rtol=5e-3)  # straight to the eye: far is 10 frames out
     # the same in 3D: the UR5 at a singular pose, linear force ellipsoid
     d3 = viz.draw_ellipsoid(robots.ur5("textbook"), np.deg2rad([0, -90, 0, 0, 30, 0]), force=True)
     assert d3.manipulability.singular == d3.force.singular
@@ -205,3 +215,39 @@ def test_explore_redraws_any_drawing():
     sliders = viz.explore(robots.planar_2r(), draw=viz.draw_ellipsoid, force=True)
     sliders[1].value = 0.5  # redraws without error
     assert len(sliders) == 2
+
+
+def _segments_3d(ax):
+    """Every line drawn on 3D axes, as (m, 2, 3) segments."""
+    segs = []
+    for line in ax.lines:
+        x, y, z = line.get_data_3d()
+        P = np.column_stack([x, y, z]).astype(float)
+        segs += [P[i : i + 2] for i in range(len(P) - 1) if np.isfinite(P[i : i + 2]).all()]
+    for c in ax.collections:
+        segs += [np.asarray(s, float) for s in getattr(c, "_segments3d", [])]
+    return np.array(segs)
+
+
+def test_an_unbounded_force_ellipsoid_in_space_is_cut_at_the_frame():
+    # the 2R arm drawn in 3D is flat in z, so its force ellipsoid is unbounded along z
+    d = viz.draw_ellipsoid(robots.planar_2r(), [0, PI / 4], force=True)
+    assert np.isinf(d.force.radii).sum() == 1 and d.clipped
+    lo = np.array([d.ax.get_xlim()[0], d.ax.get_ylim()[0], d.ax.get_zlim()[0]])
+    hi = np.array([d.ax.get_xlim()[1], d.ax.get_ylim()[1], d.ax.get_zlim()[1]])
+    segs = _segments_3d(d.ax).reshape(-1, 3)
+    assert ((segs >= lo - 1e-9) & (segs <= hi + 1e-9)).all()  # nothing drawn past the frame
+    assert np.isclose(segs[:, 2].min(), lo[2]) and np.isclose(segs[:, 2].max(), hi[2])  # but up to it, along z
+    assert "∞" in [t.get_text() for t in d.ax.texts]
+
+
+def test_the_frame_follows_the_robot_not_the_force_ellipse_into_a_singularity():
+    arm = robots.planar_2r()
+
+    def span(anim):
+        ax = anim.fig.axes[0]
+        return np.ptp(ax.get_xlim()), np.ptp(ax.get_ylim())
+
+    plain = viz.animate_robot(arm, [0, 3 * PI / 4], [0, 0], planar=True, chart=False)
+    forced = viz.animate_robot(arm, [0, 3 * PI / 4], [0, 0], force=True, planar=True, chart=False)
+    assert np.all(np.array(span(forced)) < 1.3 * np.array(span(plain)))

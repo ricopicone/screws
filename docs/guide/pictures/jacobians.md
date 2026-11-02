@@ -53,15 +53,17 @@ The two postures of notes 5.5, drawn at one scale. Both have μ3 = 0.707, but μ
 against 1.63, which is the point that example makes. Left to itself, each ellipsoid gets its
 own scale, its longest semi-axis 0.3 of the robot's reach.
 
-![The 2R arm stretched straight: the purple ellipse collapsed to a segment across the arm, and a dotted line along the arm marked infinity](../../media/singular_2r.png)
+![The 2R arm stretched straight: the purple ellipse collapsed to a segment across the arm, and the grey dashed force ellipse become two lines along the arm running out of the picture, its dotted axis marked infinity](../../media/singular_2r.png)
 
 ```python
 viz.draw_ellipsoid(arm, [0.3, 0], force=True, planar=True)
 ```
 
 Stretched out, at θ2 = 0. The velocity ellipse is a segment, with semi-axes 0 and 2.24 m/s.
-Along the arm the force ellipse is unbounded, so the picture draws only its bounded section,
-dots the lost axis and marks it ∞. It never draws a big finite ellipse.
+Along the arm the force ellipse is unbounded, so it runs out of the picture both ways: what
+is left of it is two lines along the arm, 0.447 N either side. Its lost axis is dotted and
+marked ∞ where it leaves. Every ellipsoid is drawn at its true size, and the frame is set by
+the robot, not stretched to hold a long one.
 
 ![The UR5 with a translucent purple ellipsoid at the tool and a grey wireframe force ellipsoid around it](../../media/ellipsoid_ur5.png)
 
@@ -84,7 +86,8 @@ viz.animate_robot(arm, [np.pi / 6, 2.4], [np.pi / 3, 0], force=True, planar=True
 ```
 
 Constant joint rates into the stretched-out singularity. The short semi-axis reaches zero in
-the last frame.
+the last frame, while the force ellipse grows along the arm and out of the frame, ending as
+the two lines of the picture above.
 
 ![The UR5 straightens its elbow while J_s(θ) changes beside it; the caption ends at rank J_s = 5, singular](../../media/ellipsoid_ur5.gif)
 

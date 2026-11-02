@@ -16,6 +16,13 @@ Every release of `screws`, newest first. Versions are git tags, and a tag publis
   The README shows the UR5 putt again.
 
 ### Changed
+- Ellipsoids are drawn at their true size and run out of the frame, instead of being cut
+  short at 0.9 of the robot's reach and marked …. The frame is set by the robot and the
+  ellipsoids' typical size, so an animation into a singularity no longer zooms out for the
+  force ellipsoid's spike. At the singularity the force ellipsoid is drawn as what it has
+  become, two lines along the lost direction in the plane or a cylinder in space, running
+  out of the frame both ways; its lost axis is dotted and marked ∞ where it leaves.
+  `EllipsoidDrawing.clipped` now says whether a semi-axis reaches past the frame.
 - `docs/media/putt.gif` is made from `putt.mp4` with ffmpeg: 557 KB instead of 5.7 MB, and
   15 frames a second instead of 10.
 
