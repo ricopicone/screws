@@ -17,6 +17,6 @@ def test_every_alias_is_in_the_names_table():
 def test_version_is_release():
     import screws
 
-    assert screws.__version__ == "0.9.1"
-    assert 'version = "0.9.1"' in (README.parent / "pyproject.toml").read_text(encoding="utf-8")
-    assert "\nversion: 0.9.1\n" in (README.parent / "CITATION.cff").read_text(encoding="utf-8")
+    assert screws.__version__ == "0.10.0"
+    assert 'version = "0.10.0"' in (README.parent / "pyproject.toml").read_text(encoding="utf-8")
+    assert "\nversion: 0.10.0\n" in (README.parent / "CITATION.cff").read_text(encoding="utf-8")

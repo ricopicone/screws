@@ -17,7 +17,7 @@ repository-code: "https://github.com/ricopicone/screws"
 # the concept DOI: every version of screws, resolving to the latest
 doi: 10.5281/zenodo.23873253
 license: MIT
-version: 0.9.1
+version: 0.10.0
 date-released: 2026-11-01
 keywords:
   - robotics
