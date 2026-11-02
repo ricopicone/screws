@@ -84,9 +84,11 @@ class Green:
     logo: int | None = None
 
     def ball_position(self) -> np.ndarray:
+        """The ball's centre in the world frame."""
         return np.asarray(self.scene.sim.getObjectPosition(self.ball, self.scene.sim.handle_world), float)
 
     def ball_speed(self) -> float:
+        """The ball's linear speed."""
         v, _ = self.scene.sim.getObjectVelocity(self.ball)
         return float(np.linalg.norm(v))
 
@@ -100,10 +102,12 @@ class Green:
         return self.distance_to_hole() <= HOLE_RADIUS and p[2] < self.top - BALL_RADIUS / 2
 
     def handles(self) -> list[int]:
+        """Every object the green added to the scene."""
         extras = [h for h in (self.seal, self.logo) if h is not None]
         return [self.ball, *self.turf, self.surface, self.cup_floor, *self.pin, *extras]
 
     def remove(self) -> None:
+        """Take the green out of the scene."""
         self.scene.untrack(*self.handles())
         self.scene.sim.removeObjects(self.handles())
 
@@ -516,6 +520,7 @@ class Putter:
         return replace(robot, name=f"{robot.name}+putter", M=robot.M @ self.T_tip_face)
 
     def remove(self) -> None:
+        """Take the putter off the arm and out of the scene."""
         self.scene.untrack(self.shaft, self.face)
         self.scene.sim.removeObjects([self.shaft, self.face])
 
@@ -630,6 +635,9 @@ def swing_path(
 
 @dataclass
 class PuttResult:
+    """How a putt went: whether it dropped, where the ball stopped, and the paths of the
+    ball and the putter face."""
+
     holed: bool
     distance: float  # final horizontal distance from the ball to the hole, m
     ball_path: np.ndarray  # (N, 3) ball positions, one per step from the stroke onward

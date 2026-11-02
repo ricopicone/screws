@@ -69,6 +69,9 @@ class JointDrawing:
 
 @dataclass
 class RobotDrawing:
+    """What draw_robot drew: the skeleton, and one JointDrawing per joint drawn (all in the
+    drawing's frame)."""
+
     fig: object
     ax: object
     frame: str
@@ -79,6 +82,9 @@ class RobotDrawing:
 
 @dataclass
 class ScrewDrawing:
+    """What draw_screw drew: the axis (omega, v), a point q on it, the pitch, and the two
+    terms of v = -omega x q + h omega."""
+
     fig: object
     ax: object
     omega: np.ndarray

@@ -343,12 +343,11 @@ def test_import_screws_does_not_import_sympy():
     assert r.returncode == 0, r.stderr
 
 
-def test_the_readme_section_runs():
+def test_the_formulas_page_runs():
     from pathlib import Path
 
-    readme = (Path(__file__).parents[1] / "README.md").read_text(encoding="utf-8")
-    section = readme[readme.index("## Formulas") : readme.index("## CoppeliaSim")]
-    code = "\n".join(re.findall(r"```python\n(.*?)```", section, re.DOTALL))
+    page = (Path(__file__).parents[1] / "docs" / "guide" / "formulas.md").read_text(encoding="utf-8")
+    code = "\n".join(re.findall(r"```python\n(.*?)```", page, re.DOTALL))
     ns: dict = {}
-    exec(code, ns)  # noqa: S102 - the README's own example
+    exec(code, ns)  # noqa: S102 - the documentation's own example
     assert sp.simplify(ns["arm"].mass_matrix()[1, 1] - L2**2 * m2) == 0

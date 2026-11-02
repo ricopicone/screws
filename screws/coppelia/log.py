@@ -26,6 +26,7 @@ class Log:
         self._T_sb: list[np.ndarray] = []
 
     def record(self, t, theta, dtheta, tau, command, T_sb) -> None:
+        """Append one step; Scene.run calls this after every step."""
         self._t.append(float(t))
         self._theta.append(np.asarray(theta, dtype=float))
         self._dtheta.append(np.asarray(dtheta, dtype=float))

@@ -72,6 +72,9 @@ class ColumnDrawing:
 
 @dataclass
 class JacobianDrawing:
+    """What draw_jacobian drew: the figure, the matrix printed with its rank, and one
+    ColumnDrawing per joint (all in the drawing's frame)."""
+
     fig: object
     ax: object
     frame: str
@@ -88,6 +91,9 @@ class JacobianDrawing:
 
 @dataclass
 class EllipsoidDrawing:
+    """What draw_ellipsoid drew: the manipulability ellipsoid, the force ellipsoid if asked
+    for, and the scales they were drawn at."""
+
     fig: object
     ax: object
     theta: np.ndarray

@@ -35,11 +35,13 @@ class Mesh:
     alpha: float = 1.0
 
     def face_colours(self) -> list:
+        """One colour per face."""
         if isinstance(self.colours, str):
             return [self.colours] * len(self.faces)
         return list(self.colours)
 
     def transformed(self, T) -> Mesh:
+        """The same mesh moved by the transform T."""
         T = np.asarray(T, float)
         return Mesh(self.vertices @ T[:3, :3].T + T[:3, 3], self.faces, self.colours, self.alpha)
 

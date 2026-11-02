@@ -130,6 +130,7 @@ class Arm:
         return [self.scene.frame(h) for h in self.handles]
 
     def joint_types(self) -> tuple[str, ...]:
+        """"revolute" or "prismatic" for each joint, base to tip."""
         return tuple(
             "prismatic" if self.sim.getJointType(h) == self.sim.joint_prismatic else "revolute"
             for h in self.handles
@@ -220,11 +221,13 @@ class Arm:
         return u
 
     def command_positions(self, theta) -> None:
+        """Position mode: set each joint's target position."""
         self._require("position")
         for h, v in zip(self.handles, self._vector(theta)):
             self.sim.setJointTargetPosition(h, float(v))
 
     def command_velocities(self, dtheta) -> None:
+        """Velocity mode: set each joint's target velocity."""
         self._require("velocity")
         for h, v in zip(self.handles, self._vector(dtheta)):
             self.sim.setJointTargetVelocity(h, float(v))
