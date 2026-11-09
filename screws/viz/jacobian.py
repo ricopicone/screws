@@ -828,7 +828,7 @@ def compare_paths(
     motion from start to end (a helix about its axis) and the joint rates change, found by
     inverse kinematics. Each panel charts the quantity that changes; the caption gives the
     one held fixed. .data["joint"] and .data["screw"] hold each side's numbers, as
-    animate_robot's. MR 9.2, eqs. 9.7 and 9.14; notes 3.10, 9.2.
+    animate_robot's. MR 9.2.1, eqs. 9.3 and 9.6; notes 3.10, 9.2.
     """
     import matplotlib.pyplot as plt
 

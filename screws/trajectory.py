@@ -23,13 +23,16 @@ _SCALINGS = ("cubic", "quintic")
 
 
 def cubic_time_scaling(T_final, t) -> float:
-    """s(t) = 3 (t/T)^2 - 2 (t/T)^3: rest-to-rest with zero end velocities. MR 9.2.1, eq. 9.9; notes 9.2."""
+    """s(t) = 3 (t/T)^2 - 2 (t/T)^3: rest-to-rest with zero end velocities. MR 9.2.2.1, eq. 9.9; notes 9.2."""
     u = float(t) / float(T_final)
     return 3.0 * u**2 - 2.0 * u**3
 
 
 def quintic_time_scaling(T_final, t) -> float:
-    """s(t) = 10 (t/T)^3 - 15 (t/T)^4 + 6 (t/T)^5: zero end velocities and accelerations. MR 9.2.1, eq. 9.12."""
+    """s(t) = 10 (t/T)^3 - 15 (t/T)^4 + 6 (t/T)^5: zero end velocities and accelerations.
+
+    MR 9.2.2.1 (the coefficients are its Exercise 9.5); notes 9.2.
+    """
     u = float(t) / float(T_final)
     return 10.0 * u**3 - 15.0 * u**4 + 6.0 * u**5
 
@@ -50,7 +53,7 @@ def _s_values(T_final, N, scaling):
 def joint_trajectory(theta_start, theta_end, T_final, N, scaling: str = "quintic") -> np.ndarray:
     """A straight line in joint space, N rows from theta_start to theta_end over T_final seconds.
 
-    Row k is at time k T_final / (N - 1). MR 9.2, eq. 9.7; notes 9.2.
+    Row k is at time k T_final / (N - 1). MR 9.2.1, eq. 9.3, time-scaled as in 9.2.2; notes 9.2.
     """
     a, b = np.asarray(theta_start, dtype=float), np.asarray(theta_end, dtype=float)
     return np.array([s * b + (1.0 - s) * a for s in _s_values(T_final, N, scaling)])
@@ -59,7 +62,7 @@ def joint_trajectory(theta_start, theta_end, T_final, N, scaling: str = "quintic
 def screw_trajectory(X_start, X_end, T_final, N, scaling: str = "quintic") -> list[np.ndarray]:
     """A screw motion from X_start to X_end: X(s) = X_start exp(log(X_start^{-1} X_end) s).
 
-    N transformations; the body follows one constant screw axis. MR 9.2.3, eq. 9.14; notes 9.2.
+    N transformations; the body follows one constant screw axis. MR 9.2.1, eq. 9.6; notes 9.2.
     """
     X_start, X_end = np.asarray(X_start, dtype=float), np.asarray(X_end, dtype=float)
     L = log6(transform_inv(X_start) @ X_end)
@@ -70,7 +73,7 @@ def cartesian_trajectory(X_start, X_end, T_final, N, scaling: str = "quintic") -
     """A straight-line motion of the origin with a rotation interpolated separately.
 
     p(s) = p_start + s (p_end - p_start), R(s) = R_start exp(log(R_start^T R_end) s).
-    MR 9.2.3, eq. 9.15; notes 9.2.
+    MR 9.2.1, eqs. 9.7-9.8; notes 9.2.
     """
     R0, p0 = transform_to_rp(X_start)
     R1, p1 = transform_to_rp(X_end)
